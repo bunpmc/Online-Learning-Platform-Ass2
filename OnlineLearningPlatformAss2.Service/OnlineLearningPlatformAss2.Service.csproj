@@ -10,4 +10,7 @@
         <ProjectReference Include="..\OnlineLearningPlatformAss2.Data\OnlineLearningPlatformAss2.Data.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <PackageReference Include="Serilog" />
+    </ItemGroup>
 </Project>

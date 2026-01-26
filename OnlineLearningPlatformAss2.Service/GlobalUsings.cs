@@ -1,6 +1,3 @@
-namespace OnlineLearningPlatformAss2.Service;
-
-public class GlobalUsings
-{
-    
-}
+global using Serilog;
+global using Serilog.Core;
+global using Serilog.Events;

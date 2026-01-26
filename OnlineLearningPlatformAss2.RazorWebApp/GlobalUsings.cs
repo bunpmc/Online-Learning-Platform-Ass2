@@ -1,6 +1,4 @@
-namespace OnlineLearningPlatformAss2.RazorWebApp;
+global using Serilog;
+global using Serilog.Core;
+global using Serilog.Events;
 
-public class GlobalUsings
-{
-    
-}

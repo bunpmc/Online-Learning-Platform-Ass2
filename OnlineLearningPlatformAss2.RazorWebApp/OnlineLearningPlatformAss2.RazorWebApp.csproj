@@ -10,4 +10,9 @@
         <ProjectReference Include="..\OnlineLearningPlatformAss2.Service\OnlineLearningPlatformAss2.Service.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <PackageReference Include="Serilog" />
+        <PackageReference Include="Serilog.AspNetCore" />
+        <PackageReference Include="Serilog.Enrichers.Environment" />
+    </ItemGroup>
 </Project>

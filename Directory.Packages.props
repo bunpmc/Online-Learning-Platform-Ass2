@@ -17,8 +17,9 @@
 
     <!-- Logging & Diagnostics -->
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="9.0.0" />
-    <PackageVersion Include="Serilog" Version="4.1.1" />
-    <PackageVersion Include="Serilog.AspNetCore" Version="9.0.1" />
+    <PackageVersion Include="Serilog" Version="4.3.0" />
+    <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageVersion Include="Serilog.Enrichers.Environment" Version="2.3.0" />
 
     <!-- Validation -->
     <PackageVersion Include="FluentValidation" Version="11.10.0" />
