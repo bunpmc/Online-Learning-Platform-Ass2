@@ -132,7 +132,7 @@
                                     <p class="mb-1 small fw-medium" style="font-size: 0.85rem;">@note.Message</p>
                                     @if (!note.IsRead)
                                     {
-                                        <button onclick="markRead('@note.Id')" class="btn btn-sm btn-link p-0 text-decoration-none" style="font-size: 0.75rem;">Mark as read</button>
+                                    <button onclick="markRead('@note.NotificationId')" class="btn btn-sm btn-link p-0 text-decoration-none" style="font-size: 0.75rem;">Mark as read</button>
                                     }
                                 </div>
                             }

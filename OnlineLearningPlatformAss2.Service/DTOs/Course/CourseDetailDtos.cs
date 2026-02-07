@@ -22,7 +22,7 @@ public class CourseListDto
     public DateTime? UpdatedAt { get; set; }
 
     // Helper properties
-    public string FormattedPrice => Price == 0 ? "Free" : Price.ToString("C");
+    public string FormattedPrice => Price == 0 ? "Miễn phí" : $"{Price:N0}₫";
     public string FormattedDuration => Duration > 0 ? $"{Duration / 60}h {Duration % 60}m" : "TBD";
     public string RatingDisplay => new string('★', (int)Math.Round(Rating)) + new string('☆', 5 - (int)Math.Round(Rating));
 }
@@ -56,7 +56,7 @@ public class CourseDetailDto
     public bool HasCertificate { get; set; } = true;
     
     // Helper properties
-    public string FormattedPrice => Price == 0 ? "Free" : Price.ToString("C");
+    public string FormattedPrice => Price == 0 ? "Miễn phí" : $"{Price:N0}₫";
     public int TotalLessons => Modules.Sum(m => m.Lessons.Count);
     public int TotalDuration => Modules.Sum(m => m.Lessons.Sum(l => l.Duration));
     public string FormattedDuration => TotalDuration > 0 ? $"{TotalDuration / 60}h {TotalDuration % 60}m" : "TBD";

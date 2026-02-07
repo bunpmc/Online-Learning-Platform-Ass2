@@ -1,32 +1,15 @@
-using Microsoft.EntityFrameworkCore;
-using OnlineLearningPlatformAss2.Data.Database;
-using OnlineLearningPlatformAss2.Data.Database.Entities;
+using OnlineLearningPlatformAss2.Data.Entities;
+using OnlineLearningPlatformAss2.Data.Repositories.Interfaces;
 using OnlineLearningPlatformAss2.Service.DTOs.Discussion;
 using OnlineLearningPlatformAss2.Service.Services.Interfaces;
 
 namespace OnlineLearningPlatformAss2.Service.Services;
 
-public class DiscussionService : IDiscussionService
+public class DiscussionService(IDiscussionRepository discussionRepository) : IDiscussionService
 {
-    private readonly OnlineLearningContext _context;
-
-    public DiscussionService(OnlineLearningContext context)
-    {
-        _context = context;
-    }
-
     public async Task<IEnumerable<CommentViewModel>> GetLessonCommentsAsync(Guid lessonId)
     {
-        var comments = await _context.LessonComments
-            .Include(c => c.User)
-            .ThenInclude(u => u.Role)
-            .Include(c => c.Replies)
-            .ThenInclude(r => r.User)
-            .ThenInclude(u => u.Role)
-            .Where(c => c.LessonId == lessonId && c.ParentId == null)
-            .OrderByDescending(c => c.CreatedAt)
-            .ToListAsync();
-
+        var comments = await discussionRepository.GetLessonCommentsAsync(lessonId);
         return comments.Select(c => MapToViewModel(c)).ToList();
     }
 
@@ -34,7 +17,7 @@ public class DiscussionService : IDiscussionService
     {
         var comment = new LessonComment
         {
-            Id = Guid.NewGuid(),
+            CommentId = Guid.NewGuid(),
             LessonId = request.LessonId,
             UserId = userId,
             Content = request.Content,
@@ -42,32 +25,26 @@ public class DiscussionService : IDiscussionService
             CreatedAt = DateTime.UtcNow
         };
 
-        _context.LessonComments.Add(comment);
-        await _context.SaveChangesAsync();
+        await discussionRepository.AddCommentAsync(comment);
+        await discussionRepository.SaveChangesAsync();
 
-        // Reload to get user info
-        var savedComment = await _context.LessonComments
-            .Include(c => c.User)
-            .ThenInclude(u => u.Role)
-            .FirstAsync(c => c.Id == comment.Id);
-
-        return MapToViewModel(savedComment);
+        var savedComment = await discussionRepository.GetCommentWithUserAsync(comment.CommentId);
+        return MapToViewModel(savedComment!);
     }
 
     public async Task<bool> DeleteCommentAsync(Guid userId, Guid commentId)
     {
-        var comment = await _context.LessonComments.FindAsync(commentId);
+        var comment = await discussionRepository.GetCommentByIdAsync(commentId);
         if (comment == null) return false;
 
-        // Only author or admin can delete
         if (comment.UserId != userId)
         {
-            var user = await _context.Users.Include(u => u.Role).FirstAsync(u => u.Id == userId);
-            if (user.Role?.Name != "Admin") return false;
+            var user = await discussionRepository.GetUserWithRoleAsync(userId);
+            if (user?.Role?.Name != "Admin") return false;
         }
 
-        _context.LessonComments.Remove(comment);
-        await _context.SaveChangesAsync();
+        await discussionRepository.RemoveCommentAsync(comment);
+        await discussionRepository.SaveChangesAsync();
         return true;
     }
 
@@ -75,13 +52,13 @@ public class DiscussionService : IDiscussionService
     {
         return new CommentViewModel
         {
-            Id = comment.Id,
+            Id = comment.CommentId,
             Content = comment.Content,
             Username = comment.User.Username,
             AvatarUrl = comment.User.Profile?.AvatarUrl,
             CreatedAt = comment.CreatedAt,
             IsInstructor = comment.User.Role?.Name == "Instructor" || comment.User.Role?.Name == "Admin",
-            Replies = comment.Replies.Select(r => MapToViewModel(r)).ToList()
+            Replies = comment.InverseParent.Select(r => MapToViewModel(r)).ToList()
         };
     }
 }

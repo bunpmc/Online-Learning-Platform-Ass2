@@ -1,140 +1,88 @@
 using OnlineLearningPlatformAss2.Service.Services.Interfaces;
 using OnlineLearningPlatformAss2.Service.DTOs.Course;
 using OnlineLearningPlatformAss2.Service.DTOs.Category;
-using OnlineLearningPlatformAss2.Data.Database;
-using OnlineLearningPlatformAss2.Data.Database.Entities;
-using Microsoft.EntityFrameworkCore;
+using OnlineLearningPlatformAss2.Data.Entities;
+using OnlineLearningPlatformAss2.Data.Repositories.Interfaces;
 
 namespace OnlineLearningPlatformAss2.Service.Services;
 
-public class CourseService : ICourseService
+public class CourseService(
+    ICourseRepository courseRepository,
+    IEnrollmentRepository enrollmentRepository,
+    IReviewService reviewService) : ICourseService
 {
-    private readonly OnlineLearningContext _context;
-    private readonly IReviewService _reviewService;
-
-    public CourseService(OnlineLearningContext context, IReviewService reviewService)
-    {
-        _context = context;
-        _reviewService = reviewService;
-    }
-
     public async Task<IEnumerable<CourseViewModel>> GetFeaturedCoursesAsync(int? limit = null)
     {
-        var query = _context.Courses
-            .Include(c => c.Category)
-            .Include(c => c.Instructor)
-            .Where(c => c.IsFeatured && c.Status == "Published");
-
-        if (limit.HasValue)
+        var courses = await courseRepository.GetFeaturedCoursesAsync(limit ?? 6);
+        var viewModels = new List<CourseViewModel>();
+        
+        foreach (var c in courses)
         {
-            query = query.Take(limit.Value);
-        }
-        else
-        {
-            query = query.Take(6);
-        }
-
-        var courses = await query
-            .Select(c => new CourseViewModel
+            viewModels.Add(new CourseViewModel
             {
-                Id = c.Id,
+                Id = c.CourseId,
                 Title = c.Title,
-                Description = c.Description,
+                Description = c.Description ?? string.Empty,
                 Price = c.Price,
                 ImageUrl = c.ImageUrl,
                 CategoryName = c.Category.Name,
                 InstructorName = c.Instructor.Username,
-                Rating = c.Reviews.Any() ? (decimal)c.Reviews.Average(r => r.Rating) : 0m,
-                StudentCount = _context.Enrollments.Count(e => e.CourseId == c.Id),
+                Rating = c.CourseReviews.Any() ? (decimal)c.CourseReviews.Average(r => r.Rating) : 0m,
+                StudentCount = await courseRepository.GetEnrollmentCountAsync(c.CourseId),
                 IsFeatured = true
-            })
-            .ToListAsync();
-
-        return courses;
+            });
+        }
+        
+        return viewModels;
     }
 
     public async Task<IEnumerable<CourseViewModel>> GetAllCoursesAsync(string? searchTerm = null, Guid? categoryId = null, int? limit = null)
     {
-        var query = _context.Courses
-            .Include(c => c.Category)
-            .Include(c => c.Instructor)
-            .Where(c => c.Status == "Published")
-            .AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(searchTerm))
-        {
-            var term = searchTerm.Trim().ToLower();
-            query = query.Where(c => 
-                c.Title.ToLower().Contains(term) ||
-                c.Description.ToLower().Contains(term) ||
-                c.Category.Name.ToLower().Contains(term) ||
-                c.Instructor.Username.ToLower().Contains(term)
-            );
-        }
+        var courses = await courseRepository.GetCoursesAsync(searchTerm, categoryId, limit);
+        var viewModels = new List<CourseViewModel>();
         
-        if (categoryId.HasValue)
+        foreach (var c in courses)
         {
-            query = query.Where(c => c.CategoryId == categoryId.Value);
-        }
-
-        if (limit.HasValue)
-        {
-            query = query.Take(limit.Value);
-        }
-
-        var courses = await query
-            .Select(c => new CourseViewModel
+            viewModels.Add(new CourseViewModel
             {
-                Id = c.Id,
+                Id = c.CourseId,
                 Title = c.Title,
-                Description = c.Description,
+                Description = c.Description ?? string.Empty,
                 Price = c.Price,
                 ImageUrl = c.ImageUrl,
                 CategoryName = c.Category.Name,
                 InstructorName = c.Instructor.Username,
-                Rating = c.Reviews.Any() ? (decimal)c.Reviews.Average(r => r.Rating) : 0m,
-                StudentCount = _context.Enrollments.Count(e => e.CourseId == c.Id),
+                Rating = c.CourseReviews.Any() ? (decimal)c.CourseReviews.Average(r => r.Rating) : 0m,
+                StudentCount = await courseRepository.GetEnrollmentCountAsync(c.CourseId),
                 IsFeatured = false
-            })
-            .ToListAsync();
-
-        return courses;
+            });
+        }
+        
+        return viewModels;
     }
 
     public async Task<CourseDetailViewModel?> GetCourseDetailsAsync(Guid id, Guid? userId = null)
     {
-        var course = await _context.Courses
-            .Include(c => c.Category)
-            .Include(c => c.Instructor)
-            .Include(c => c.Modules)
-            .ThenInclude(m => m.Lessons)
-            .Include(c => c.Reviews)
-            .ThenInclude(r => r.User)
-            .Where(c => c.Status == "Published")
-            .FirstOrDefaultAsync(c => c.Id == id);
-
-        if (course == null)
+        var course = await courseRepository.GetByIdWithDetailsAsync(id);
+        if (course == null || course.Status != "Published")
             return null;
 
         var isEnrolled = false;
         var isInWishlist = false;
         if (userId.HasValue)
         {
-            isEnrolled = await _context.Enrollments
-                .AnyAsync(e => e.UserId == userId.Value && e.CourseId == id);
-                
-            isInWishlist = await _context.Wishlists
-                .AnyAsync(w => w.UserId == userId.Value && w.CourseId == id);
+            isEnrolled = await enrollmentRepository.IsEnrolledAsync(userId.Value, id);
+            isInWishlist = await courseRepository.IsInWishlistAsync(userId.Value, id);
         }
 
-        var studentCount = await _context.Enrollments.CountAsync(e => e.CourseId == id);
-        var ratingSummary = await _reviewService.GetRatingSummaryAsync(id);
+        var studentCount = await courseRepository.GetEnrollmentCountAsync(id);
+        var ratingSummary = await reviewService.GetRatingSummaryAsync(id);
 
         return new CourseDetailViewModel
         {
-            Id = course.Id,
+            Id = course.CourseId,
             Title = course.Title,
-            Description = course.Description,
+            Description = course.Description ?? string.Empty,
             Price = course.Price,
             ImageUrl = course.ImageUrl,
             CategoryName = course.Category.Name,
@@ -151,20 +99,20 @@ public class CourseService : ICourseService
             HasCertificate = true,
             Modules = course.Modules.Select(m => new ModuleViewModel
             {
-                Id = m.Id,
+                Id = m.ModuleId,
                 Title = m.Title,
-                Description = m.Description,
+                Description = m.Description ?? string.Empty,
                 OrderIndex = m.OrderIndex,
                 Lessons = m.Lessons.Select(l => new LessonViewModel
                 {
-                    Id = l.Id,
+                    Id = l.LessonId,
                     Title = l.Title,
-                    Duration = 15,
+                    Duration = l.Duration ?? 15,
                     OrderIndex = l.OrderIndex,
                     IsPreview = l.OrderIndex <= 2
                 }).OrderBy(l => l.OrderIndex).ToList()
             }).OrderBy(m => m.OrderIndex).ToList(),
-            Reviews = (await _reviewService.GetCourseReviewsAsync(id)).Select(r => new ReviewViewModel 
+            Reviews = (await reviewService.GetCourseReviewsAsync(id)).Select(r => new ReviewViewModel 
             {
                 Id = r.Id,
                 Username = r.Username,
@@ -177,79 +125,75 @@ public class CourseService : ICourseService
 
     public async Task<bool> ToggleWishlistAsync(Guid userId, Guid courseId)
     {
-        var existing = await _context.Wishlists
-            .FirstOrDefaultAsync(w => w.UserId == userId && w.CourseId == courseId);
+        var existing = await courseRepository.GetWishlistItemAsync(userId, courseId);
 
         if (existing != null)
         {
-            _context.Wishlists.Remove(existing);
+            await courseRepository.RemoveWishlistAsync(existing);
         }
         else
         {
-            _context.Wishlists.Add(new Wishlist
+            await courseRepository.AddWishlistAsync(new Wishlist
             {
-                Id = Guid.NewGuid(),
+                WishlistId = Guid.NewGuid(),
                 UserId = userId,
                 CourseId = courseId,
                 AddedAt = DateTime.UtcNow
             });
         }
 
-        await _context.SaveChangesAsync();
-        return existing == null; // returns true if added, false if removed
+        await courseRepository.SaveChangesAsync();
+        return existing == null;
     }
 
     public async Task<IEnumerable<CourseViewModel>> GetWishlistAsync(Guid userId)
     {
-        return await _context.Wishlists
-            .Include(w => w.Course)
-            .ThenInclude(c => c.Category)
-            .Include(w => w.Course)
-            .ThenInclude(c => c.Instructor)
-            .Where(w => w.UserId == userId)
-            .OrderByDescending(w => w.AddedAt)
-            .Select(w => new CourseViewModel
-            {
-                Id = w.Course.Id,
-                Title = w.Course.Title,
-                Description = w.Course.Description,
-                Price = w.Course.Price,
-                ImageUrl = w.Course.ImageUrl,
-                CategoryName = w.Course.Category.Name,
-                InstructorName = w.Course.Instructor.Username,
-                Rating = 4.5m, // TODO: calculate real rating if needed in list view
-                StudentCount = 0, // Placeholder
-                IsInWishlist = true
-            })
-            .ToListAsync();
+        var wishlists = await courseRepository.GetUserWishlistAsync(userId);
+        return wishlists.Select(w => new CourseViewModel
+        {
+            Id = w.Course.CourseId,
+            Title = w.Course.Title,
+            Description = w.Course.Description ?? string.Empty,
+            Price = w.Course.Price,
+            ImageUrl = w.Course.ImageUrl,
+            CategoryName = w.Course.Category.Name,
+            InstructorName = w.Course.Instructor.Username,
+            Rating = 4.5m,
+            StudentCount = 0,
+            IsInWishlist = true
+        });
     }
 
     public async Task<IEnumerable<CourseViewModel>> GetInstructorCoursesAsync(Guid instructorId)
     {
-        return await _context.Courses
-            .Include(c => c.Category)
-            .Where(c => c.InstructorId == instructorId)
-            .Select(c => new CourseViewModel
+        var courses = await courseRepository.GetInstructorCoursesAsync(instructorId);
+        var viewModels = new List<CourseViewModel>();
+        
+        foreach (var c in courses)
+        {
+            viewModels.Add(new CourseViewModel
             {
-                Id = c.Id,
+                Id = c.CourseId,
                 Title = c.Title,
-                Description = c.Description,
+                Description = c.Description ?? string.Empty,
                 Price = c.Price,
                 ImageUrl = c.ImageUrl,
                 CategoryName = c.Category.Name,
                 InstructorName = c.Instructor.Username,
-                Rating = c.Reviews.Any() ? (decimal)c.Reviews.Average(r => r.Rating) : 0,
-                StudentCount = _context.Enrollments.Count(e => e.CourseId == c.Id),
+                Rating = c.CourseReviews.Any() ? (decimal)c.CourseReviews.Average(r => r.Rating) : 0,
+                StudentCount = await courseRepository.GetEnrollmentCountAsync(c.CourseId),
                 IsFeatured = c.IsFeatured,
                 Status = c.Status,
                 RejectionReason = c.RejectionReason
-            })
-            .ToListAsync();
+            });
+        }
+        
+        return viewModels;
     }
 
     public async Task<bool> UpdateCourseAsync(Guid courseId, CourseUpdateDto dto, Guid instructorId)
     {
-        var course = await _context.Courses.FindAsync(courseId);
+        var course = await courseRepository.GetByIdAsync(courseId);
         if (course == null || course.InstructorId != instructorId) return false;
 
         course.Title = dto.Title;
@@ -261,13 +205,14 @@ public class CourseService : ICourseService
         course.Level = dto.Level;
         course.Language = dto.Language;
 
-        await _context.SaveChangesAsync();
+        await courseRepository.UpdateAsync(course);
+        await courseRepository.SaveChangesAsync();
         return true;
     }
 
     public async Task<bool> SubmitReviewAsync(Guid userId, SubmitReviewDto reviewDto)
     {
-        return await _reviewService.AddReviewAsync(userId, new OnlineLearningPlatformAss2.Service.DTOs.Review.ReviewRequest
+        return await reviewService.AddReviewAsync(userId, new OnlineLearningPlatformAss2.Service.DTOs.Review.ReviewRequest
         {
             CourseId = reviewDto.CourseId,
             Rating = reviewDto.Rating,
@@ -277,7 +222,7 @@ public class CourseService : ICourseService
 
     public async Task<IEnumerable<ReviewViewModel>> GetCourseReviewsAsync(Guid courseId)
     {
-        var reviews = await _reviewService.GetCourseReviewsAsync(courseId);
+        var reviews = await reviewService.GetCourseReviewsAsync(courseId);
         return reviews.Select(r => new ReviewViewModel
         {
             Id = r.Id,
@@ -290,90 +235,76 @@ public class CourseService : ICourseService
 
     public async Task<bool> EnrollUserAsync(Guid userId, Guid courseId)
     {
-        var course = await _context.Courses.FindAsync(courseId);
+        var course = await courseRepository.GetByIdAsync(courseId);
         if (course == null) return false;
 
-        // Business Rule: Instructor cannot enroll in their own course
         if (course.InstructorId == userId) return false;
 
-        // Business Rule: Cannot enroll if already enrolled
-        var isEnrolled = await _context.Enrollments.AnyAsync(e => e.UserId == userId && e.CourseId == courseId);
+        var isEnrolled = await enrollmentRepository.IsEnrolledAsync(userId, courseId);
         if (isEnrolled) return false;
 
         var enrollment = new Enrollment
         {
-            Id = Guid.NewGuid(),
+            EnrollmentId = Guid.NewGuid(),
             UserId = userId,
             CourseId = courseId,
             EnrolledAt = DateTime.UtcNow,
             Status = "Active"
         };
 
-        _context.Enrollments.Add(enrollment);
-        await _context.SaveChangesAsync();
+        await enrollmentRepository.AddAsync(enrollment);
+        await enrollmentRepository.SaveChangesAsync();
         return true;
     }
 
     public async Task<IEnumerable<CourseViewModel>> GetEnrolledCoursesAsync(Guid userId)
     {
-        var enrollments = await _context.Enrollments
-            .Include(e => e.Course)
-            .ThenInclude(c => c.Category)
-            .Include(e => e.Course.Instructor)
-            .Include(e => e.LessonProgresses)
-            .Include(e => e.Course.Modules)
-            .ThenInclude(m => m.Lessons)
-            .Where(e => e.UserId == userId)
-            .ToListAsync();
-
-        var enrolledCourses = enrollments.Select(e => {
+        var enrollments = await enrollmentRepository.GetStudentEnrollmentsDetailedAsync(userId);
+        
+        return enrollments.Select(e => {
             var totalLessons = e.Course.Modules.Sum(m => m.Lessons.Count);
             var completedLessons = e.LessonProgresses.Count(lp => lp.IsCompleted);
             var progress = totalLessons > 0 ? (int)((decimal)completedLessons / totalLessons * 100) : 0;
 
             return new CourseViewModel
             {
-                Id = e.Course.Id,
+                Id = e.Course.CourseId,
                 Title = e.Course.Title,
-                Description = e.Course.Description,
+                Description = e.Course.Description ?? string.Empty,
                 Price = e.Course.Price,
                 ImageUrl = e.Course.ImageUrl,
                 CategoryName = e.Course.Category.Name,
                 InstructorName = e.Course.Instructor.Username,
                 Rating = 4.5m,
-                StudentCount = _context.Enrollments.Count(en => en.CourseId == e.CourseId),
+                StudentCount = 0,
                 EnrollmentDate = e.EnrolledAt,
                 Progress = progress
             };
         });
-
-        return enrolledCourses;
     }
 
     public async Task<IEnumerable<CategoryViewModel>> GetAllCategoriesAsync()
     {
-        var categories = await _context.Categories
-            .Select(c => new CategoryViewModel
+        var categories = await courseRepository.GetAllCategoriesAsync();
+        var viewModels = new List<CategoryViewModel>();
+        
+        foreach (var c in categories)
+        {
+            viewModels.Add(new CategoryViewModel
             {
-                Id = c.Id,
+                Id = c.CategoryId,
                 Name = c.Name,
-                Description = c.Description,
-                CourseCount = _context.Courses.Count(course => course.CategoryId == c.Id)
-            })
-            .ToListAsync();
-
-        return categories;
+                Description = c.Description ?? string.Empty,
+                CourseCount = await courseRepository.GetEnrollmentCountAsync(c.CategoryId)
+            });
+        }
+        
+        return viewModels;
     }
 
     public async Task<CourseLearnViewModel?> GetCourseLearnAsync(Guid enrollmentId)
     {
-        var enrollment = await _context.Enrollments
-            .Include(e => e.Course)
-            .ThenInclude(c => c.Modules)
-            .ThenInclude(m => m.Lessons)
-            .Include(e => e.LessonProgresses)
-            .FirstOrDefaultAsync(e => e.Id == enrollmentId);
-
+        var enrollment = await enrollmentRepository.GetByIdWithDetailsAsync(enrollmentId);
         if (enrollment == null)
             return null;
 
@@ -383,26 +314,26 @@ public class CourseService : ICourseService
 
         return new CourseLearnViewModel
         {
-            EnrollmentId = enrollment.Id,
-            CourseId = enrollment.Course.Id,
+            EnrollmentId = enrollment.EnrollmentId,
+            CourseId = enrollment.Course.CourseId,
             CourseTitle = enrollment.Course.Title,
-            CurrentLessonId = enrollment.Course.Modules.FirstOrDefault()?.Lessons.FirstOrDefault()?.Id,
+            CurrentLessonId = enrollment.Course.Modules.FirstOrDefault()?.Lessons.FirstOrDefault()?.LessonId,
             Progress = progress,
             Modules = enrollment.Course.Modules.Select(m => new ModuleViewModel
             {
-                Id = m.Id,
+                Id = m.ModuleId,
                 Title = m.Title,
-                Description = m.Description,
+                Description = m.Description ?? string.Empty,
                 OrderIndex = m.OrderIndex,
                 Lessons = m.Lessons.Select(l => new LessonViewModel
                 {
-                    Id = l.Id,
+                    Id = l.LessonId,
                     Title = l.Title,
-                    Content = l.Content,
+                    Content = l.Content ?? string.Empty,
                     VideoUrl = l.VideoUrl,
-                    Duration = 15,
+                    Duration = l.Duration ?? 15,
                     OrderIndex = l.OrderIndex,
-                    IsCompleted = enrollment.LessonProgresses.Any(lp => lp.LessonId == l.Id && lp.IsCompleted)
+                    IsCompleted = enrollment.LessonProgresses.Any(lp => lp.LessonId == l.LessonId && lp.IsCompleted)
                 }).OrderBy(l => l.OrderIndex).ToList()
             }).OrderBy(m => m.OrderIndex).ToList()
         };
@@ -410,143 +341,124 @@ public class CourseService : ICourseService
 
     public async Task<bool> UpdateLessonProgressAsync(Guid enrollmentId, Guid lessonId, bool isCompleted)
     {
-        var enrollment = await _context.Enrollments
-            .Include(e => e.LessonProgresses)
-            .FirstOrDefaultAsync(e => e.Id == enrollmentId);
-
+        var enrollment = await enrollmentRepository.GetByIdWithDetailsAsync(enrollmentId);
         if (enrollment == null) return false;
 
-        var progress = enrollment.LessonProgresses.FirstOrDefault(p => p.LessonId == lessonId);
+        var progress = await enrollmentRepository.GetLessonProgressAsync(enrollmentId, lessonId);
         if (progress == null)
         {
             progress = new LessonProgress
             {
-                Id = Guid.NewGuid(),
+                ProgressId = Guid.NewGuid(),
                 EnrollmentId = enrollmentId,
                 LessonId = lessonId,
-                IsCompleted = isCompleted,
-                LastAccessedAt = DateTime.UtcNow
+                IsCompleted = isCompleted
             };
-            _context.LessonProgresses.Add(progress);
+            await enrollmentRepository.AddLessonProgressAsync(progress);
         }
         else
         {
             progress.IsCompleted = isCompleted;
-            progress.LastAccessedAt = DateTime.UtcNow;
+            await enrollmentRepository.UpdateLessonProgressAsync(progress);
         }
 
-        // Check if all lessons are completed to update enrollment status
-        var course = await _context.Courses
-            .Include(c => c.Modules)
-            .ThenInclude(m => m.Lessons)
-            .FirstOrDefaultAsync(c => c.Id == enrollment.CourseId);
-
+        var course = await courseRepository.GetByIdWithDetailsAsync(enrollment.CourseId);
         if (course != null)
         {
             var totalLessons = course.Modules.Sum(m => m.Lessons.Count);
-            var completedCount = enrollment.LessonProgresses.Count(p => p.IsCompleted) + (isCompleted && !enrollment.LessonProgresses.Any(p => p.LessonId == lessonId && p.IsCompleted) ? 1 : 0);
+            var completedCount = enrollment.LessonProgresses.Count(p => p.IsCompleted) + 
+                (isCompleted && !enrollment.LessonProgresses.Any(p => p.LessonId == lessonId && p.IsCompleted) ? 1 : 0);
             
             if (completedCount >= totalLessons)
             {
                 enrollment.Status = "Completed";
                 enrollment.CompletedAt = DateTime.UtcNow;
-                
-                // Issue Certificate
+                await enrollmentRepository.UpdateAsync(enrollment);
                 await IssueCertificateAsync(enrollment.UserId, enrollment.CourseId);
             }
         }
 
-        await _context.SaveChangesAsync();
+        await enrollmentRepository.SaveChangesAsync();
         return true;
     }
 
     public async Task<Guid?> GetEnrollmentIdAsync(Guid userId, Guid courseId)
     {
-        var enrollment = await _context.Enrollments
-            .FirstOrDefaultAsync(e => e.UserId == userId && e.CourseId == courseId);
-        return enrollment?.Id;
+        var enrollment = await enrollmentRepository.GetByUserAndCourseAsync(userId, courseId);
+        return enrollment?.EnrollmentId;
     }
 
     // --- Curriculum Management ---
 
     public async Task<Guid?> AddModuleAsync(Guid courseId, string title, string description, int orderIndex, Guid instructorId)
     {
-        var course = await _context.Courses.FindAsync(courseId);
+        var course = await courseRepository.GetByIdAsync(courseId);
         if (course == null || course.InstructorId != instructorId) return null;
 
         var module = new Module
         {
-            Id = Guid.NewGuid(),
+            ModuleId = Guid.NewGuid(),
             CourseId = courseId,
             Title = title,
             Description = description,
-            OrderIndex = orderIndex
+            OrderIndex = orderIndex,
+            CreatedAt = DateTime.UtcNow
         };
 
-        _context.Modules.Add(module);
-        await _context.SaveChangesAsync();
-        return module.Id;
+        await courseRepository.AddModuleAsync(module);
+        await courseRepository.SaveChangesAsync();
+        return module.ModuleId;
     }
 
     public async Task<bool> UpdateModuleAsync(Guid moduleId, string title, string description, int orderIndex, Guid instructorId)
     {
-        var module = await _context.Modules
-            .Include(m => m.Course)
-            .FirstOrDefaultAsync(m => m.Id == moduleId);
-
+        var module = await courseRepository.GetModuleByIdAsync(moduleId);
         if (module == null || module.Course.InstructorId != instructorId) return false;
 
         module.Title = title;
         module.Description = description;
         module.OrderIndex = orderIndex;
 
-        await _context.SaveChangesAsync();
+        await courseRepository.UpdateModuleAsync(module);
+        await courseRepository.SaveChangesAsync();
         return true;
     }
 
     public async Task<bool> DeleteModuleAsync(Guid moduleId, Guid instructorId)
     {
-        var module = await _context.Modules
-            .Include(m => m.Course)
-            .FirstOrDefaultAsync(m => m.Id == moduleId);
-
+        var module = await courseRepository.GetModuleByIdAsync(moduleId);
         if (module == null || module.Course.InstructorId != instructorId) return false;
 
-        _context.Modules.Remove(module);
-        await _context.SaveChangesAsync();
+        await courseRepository.RemoveModuleAsync(module);
+        await courseRepository.SaveChangesAsync();
         return true;
     }
 
     public async Task<Guid?> AddLessonAsync(Guid moduleId, string title, string content, string? videoUrl, int orderIndex, Guid instructorId)
     {
-        var module = await _context.Modules
-            .Include(m => m.Course)
-            .FirstOrDefaultAsync(m => m.Id == moduleId);
-
+        var module = await courseRepository.GetModuleByIdAsync(moduleId);
         if (module == null || module.Course.InstructorId != instructorId) return null;
 
         var lesson = new Lesson
         {
-            Id = Guid.NewGuid(),
+            LessonId = Guid.NewGuid(),
             ModuleId = moduleId,
             Title = title,
             Content = content,
             VideoUrl = videoUrl,
-            OrderIndex = orderIndex
+            Type = "Video",
+            OrderIndex = orderIndex,
+            CreatedAt = DateTime.UtcNow
         };
 
-        _context.Lessons.Add(lesson);
-        await _context.SaveChangesAsync();
-        return lesson.Id;
+        await courseRepository.AddLessonAsync(lesson);
+        await courseRepository.SaveChangesAsync();
+        return lesson.LessonId;
     }
 
     public async Task<bool> UpdateLessonAsync(Guid lessonId, string title, string content, string? videoUrl, int orderIndex, Guid instructorId)
     {
-        var lesson = await _context.Lessons
-            .Include(l => l.Module)
-            .ThenInclude(m => m.Course)
-            .FirstOrDefaultAsync(l => l.Id == lessonId);
-
+        var lesson = await courseRepository.GetLessonByIdAsync(lessonId);
         if (lesson == null || lesson.Module.Course.InstructorId != instructorId) return false;
 
         lesson.Title = title;
@@ -554,53 +466,62 @@ public class CourseService : ICourseService
         lesson.VideoUrl = videoUrl;
         lesson.OrderIndex = orderIndex;
 
-        await _context.SaveChangesAsync();
+        await courseRepository.UpdateLessonAsync(lesson);
+        await courseRepository.SaveChangesAsync();
         return true;
     }
 
     public async Task<bool> DeleteLessonAsync(Guid lessonId, Guid instructorId)
     {
-        var lesson = await _context.Lessons
-            .Include(l => l.Module)
-            .ThenInclude(m => m.Course)
-            .FirstOrDefaultAsync(l => l.Id == lessonId);
-
+        var lesson = await courseRepository.GetLessonByIdAsync(lessonId);
         if (lesson == null || lesson.Module.Course.InstructorId != instructorId) return false;
 
-        _context.Lessons.Remove(lesson);
-        await _context.SaveChangesAsync();
+        await courseRepository.RemoveLessonAsync(lesson);
+        await courseRepository.SaveChangesAsync();
         return true;
     }
 
     public async Task<decimal> GetInstructorEarningsAsync(Guid instructorId)
     {
-        var totalAmount = await _context.Orders
-            .Where(o => o.Course.InstructorId == instructorId && o.Status == "Completed")
-            .SumAsync(o => o.TotalAmount);
-
-        return totalAmount * 0.70m; // 70% instructor revenue share
+        var totalAmount = await courseRepository.GetInstructorEarningsAsync(instructorId);
+        return totalAmount * 0.70m;
     }
 
     public async Task<bool> IssueCertificateAsync(Guid userId, Guid courseId)
     {
-        // Check if certificate already exists
-        var exists = await _context.Certificates.AnyAsync(c => c.UserId == userId && c.CourseId == courseId);
-        if (exists) return true;
+        var enrollment = await enrollmentRepository.GetByUserAndCourseAsync(userId, courseId);
+        if (enrollment == null) return false;
 
-        var course = await _context.Courses.FindAsync(courseId);
-        if (course == null) return false;
+        var exists = await courseRepository.CertificateExistsAsync(enrollment.EnrollmentId);
+        if (exists) return true;
 
         var certificate = new Certificate
         {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            CourseId = courseId,
-            IssuedAt = DateTime.UtcNow,
-            CertificateUrl = $"/Certificates/View/{Guid.NewGuid()}" // Synthetic URL for now
+            CertificateId = Guid.NewGuid(),
+            EnrollmentId = enrollment.EnrollmentId,
+            SerialNumber = $"CERT-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..8].ToUpper()}",
+            IssueDate = DateTime.UtcNow,
+            PdfUrl = $"/Certificates/View/{Guid.NewGuid()}"
         };
 
-        _context.Certificates.Add(certificate);
-        await _context.SaveChangesAsync();
+        await courseRepository.AddCertificateAsync(certificate);
+        await courseRepository.SaveChangesAsync();
         return true;
+    }
+
+    public async Task<CertificateViewModel?> GetCertificateAsync(Guid certificateId)
+    {
+        var cert = await courseRepository.GetCertificateByIdAsync(certificateId);
+        if (cert == null) return null;
+
+        return new CertificateViewModel
+        {
+            CertificateId = cert.CertificateId,
+            Username = cert.Enrollment.User.Username,
+            CourseTitle = cert.Enrollment.Course.Title,
+            InstructorName = cert.Enrollment.Course.Instructor.Username,
+            IssuedDate = cert.IssueDate,
+            VerificationCode = cert.CertificateId.ToString().Split('-')[0].ToUpper()
+        };
     }
 }

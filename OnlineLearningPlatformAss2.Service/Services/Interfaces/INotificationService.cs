@@ -1,4 +1,4 @@
-using OnlineLearningPlatformAss2.Data.Database.Entities;
+using OnlineLearningPlatformAss2.Data.Entities;
 
 namespace OnlineLearningPlatformAss2.Service.Services.Interfaces;
 

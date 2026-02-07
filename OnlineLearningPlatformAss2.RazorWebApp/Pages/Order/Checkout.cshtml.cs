@@ -31,7 +31,7 @@ public class CheckoutModel : PageModel
     public string ItemType { get; set; } = "Course"; // Course or LearningPath
 
     [BindProperty]
-    public string PaymentMethod { get; set; } = "Credit Card";
+    public string PaymentMethod { get; set; } = "VNPay";
 
     public string ItemTitle { get; set; } = "";
     public decimal ItemPrice { get; set; }

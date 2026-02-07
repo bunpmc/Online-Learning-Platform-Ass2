@@ -88,7 +88,7 @@
                                 <div class="current-price">@Model.Course.FormattedPrice</div>
                                 @if (Model.Course.Price > 0)
                                 {
-                                    <div class="original-price">$@((Model.Course.Price * 1.5m).ToString("F2"))</div>
+                                    <div class="original-price">@string.Format("{0:N0}₫", Model.Course.Price * 1.5m)</div>
                                     <div class="discount-badge">33% off</div>
                                 }
                             </div>

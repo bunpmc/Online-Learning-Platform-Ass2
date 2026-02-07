@@ -17,7 +17,7 @@ public class LearningPathViewModel
     public IEnumerable<CourseInPathViewModel> Courses { get; set; } = new List<CourseInPathViewModel>();
     
     // Helper properties
-    public string FormattedPrice => Price == 0 ? "Free" : Price.ToString("C");
+    public string FormattedPrice => Price == 0 ? "Miễn phí" : $"{Price:N0}₫";
     public string FormattedDuration => CourseCount > 0 ? $"{CourseCount * 3}h" : "TBD"; // Estimate 3h per course
 }
 

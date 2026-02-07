@@ -1,9 +1,11 @@
-using Microsoft.EntityFrameworkCore;
-using OnlineLearningPlatformAss2.Data.Database;
+﻿using Microsoft.EntityFrameworkCore;
+using OnlineLearningPlatformAss2.Data.Entities;
 using OnlineLearningPlatformAss2.Service.Services;
 using OnlineLearningPlatformAss2.Service.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using OnlineLearningPlatformAss2.RazorWebApp.Hubs;
+using OnlineLearningPlatformAss2.Data.Repositories;
+using OnlineLearningPlatformAss2.Data.Repositories.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,12 +16,12 @@ builder.Services.AddRazorPages();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (string.IsNullOrEmpty(connectionString) || connectionString.Contains("Memory", StringComparison.OrdinalIgnoreCase))
 {
-    builder.Services.AddDbContext<OnlineLearningContext>(options =>
+    builder.Services.AddDbContext<OnlineLearningSystemDbContext>(options =>
         options.UseInMemoryDatabase("OnlineLearningPlatformDb"));
 }
 else
 {
-    builder.Services.AddDbContext<OnlineLearningContext>(options =>
+    builder.Services.AddDbContext<OnlineLearningSystemDbContext>(options =>
         options.UseSqlServer(connectionString, b => b.MigrationsAssembly("OnlineLearningPlatformAss2.Data")));
 }
 
@@ -34,6 +36,19 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.SlidingExpiration = true;
     });
 
+// Register Repositories
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IEnrollmentRepository, EnrollmentRepository>();
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<ICourseRepository, CourseRepository>();
+builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
+builder.Services.AddScoped<IAdminRepository, AdminRepository>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IAssessmentRepository, AssessmentRepository>();
+builder.Services.AddScoped<ILearningPathRepository, LearningPathRepository>();
+builder.Services.AddScoped<IQuizRepository, QuizRepository>();
+builder.Services.AddScoped<IDiscussionRepository, DiscussionRepository>();
+
 // Register Services
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAssessmentService, AssessmentService>();
@@ -45,20 +60,11 @@ builder.Services.AddScoped<IQuizService, QuizService>();
 builder.Services.AddScoped<IDiscussionService, DiscussionService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
-builder.Services.AddScoped<DatabaseSeedService>();
 
 // Add SignalR
 builder.Services.AddSignalR();
-builder.Services.AddScoped<ICourseUpdateBroadcaster, OnlineLearningPlatformAss2.RazorWebApp.Services.SignalRCourseUpdateBroadcaster>();
 
 var app = builder.Build();
-
-// Seed the database
-using (var scope = app.Services.CreateScope())
-{
-    var seedService = scope.ServiceProvider.GetRequiredService<DatabaseSeedService>();
-    await seedService.SeedAsync();
-}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -82,3 +88,4 @@ app.MapHub<CourseHub>("/hubs/course");
 app.MapHub<ChatHub>("/hubs/chat");
 
 app.Run();
+

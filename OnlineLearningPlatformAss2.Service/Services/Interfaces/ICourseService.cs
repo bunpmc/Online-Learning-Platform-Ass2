@@ -33,4 +33,5 @@ public interface ICourseService
     Task<bool> UpdateCourseAsync(Guid courseId, CourseUpdateDto dto, Guid instructorId);
     Task<decimal> GetInstructorEarningsAsync(Guid instructorId);
     Task<bool> IssueCertificateAsync(Guid userId, Guid courseId);
+    Task<CertificateViewModel?> GetCertificateAsync(Guid certificateId);
 }

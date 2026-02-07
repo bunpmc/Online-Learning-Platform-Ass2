@@ -1,8 +1,7 @@
 using OnlineLearningPlatformAss2.Service.Services.Interfaces;
 using OnlineLearningPlatformAss2.Service.Results;
-using OnlineLearningPlatformAss2.Data.Database;
-using OnlineLearningPlatformAss2.Data.Database.Entities;
-using Microsoft.EntityFrameworkCore;
+using OnlineLearningPlatformAss2.Data.Entities;
+using OnlineLearningPlatformAss2.Data.Repositories.Interfaces;
 using AssessmentQuestionDto = OnlineLearningPlatformAss2.Service.DTOs.Assessment.AssessmentQuestion;
 using AssessmentOptionDto = OnlineLearningPlatformAss2.Service.DTOs.Assessment.AssessmentOption;
 using AssessmentResultDto = OnlineLearningPlatformAss2.Service.DTOs.Assessment.AssessmentResult;
@@ -10,50 +9,37 @@ using CourseRecommendationDto = OnlineLearningPlatformAss2.Service.DTOs.Assessme
 
 namespace OnlineLearningPlatformAss2.Service.Services;
 
-public class AssessmentService : IAssessmentService
+public class AssessmentService(IAssessmentRepository assessmentRepository) : IAssessmentService
 {
-    private readonly OnlineLearningContext _context;
-
-    public AssessmentService(OnlineLearningContext context)
-    {
-        _context = context;
-    }
-
     public async Task<List<DTOs.Assessment.AssessmentQuestion>> GetAssessmentQuestionsAsync()
     {
         try
         {
-            var questions = await _context.AssessmentQuestions
-                .Include(q => q.Options)
-                .Where(q => q.IsActive)
-                .OrderBy(q => q.OrderIndex)
-                .Select(q => new AssessmentQuestionDto
+            var questions = await assessmentRepository.GetActiveQuestionsAsync();
+            var result = questions.Select(q => new AssessmentQuestionDto
+            {
+                Id = q.QuestionId,
+                QuestionText = q.QuestionText,
+                QuestionType = q.QuestionType,
+                OrderIndex = q.OrderIndex,
+                Options = q.AssessmentOptions.Select(o => new AssessmentOptionDto
                 {
-                    Id = q.Id,
-                    QuestionText = q.QuestionText,
-                    QuestionType = q.QuestionType,
-                    OrderIndex = q.OrderIndex,
-                    Options = q.Options.Select(o => new AssessmentOptionDto
-                    {
-                        Id = o.Id,
-                        OptionText = o.OptionText,
-                        SkillLevel = o.SkillLevel,
-                        Category = o.Category
-                    }).ToList()
-                })
-                .ToListAsync();
+                    Id = o.OptionId,
+                    OptionText = o.OptionText,
+                    SkillLevel = o.SkillLevel,
+                    Category = o.Category
+                }).ToList()
+            }).ToList();
 
-            // If no questions in DB, return default questions
-            if (!questions.Any())
+            if (!result.Any())
             {
                 return GetDefaultQuestions();
             }
 
-            return questions;
+            return result;
         }
         catch
         {
-            // Return default questions if database error
             return GetDefaultQuestions();
         }
     }
@@ -62,43 +48,36 @@ public class AssessmentService : IAssessmentService
     {
         try
         {
-            // Get the options for analysis
-            var selectedOptions = await _context.AssessmentOptions
-                .Where(o => answers.Values.Contains(o.Id))
-                .ToListAsync();
-
-            // Analyze results
+            var selectedOptions = (await assessmentRepository.GetOptionsByIdsAsync(answers.Values)).ToList();
             var skillLevels = AnalyzeSkillLevels(selectedOptions);
             var recommendedCategories = AnalyzeRecommendedCategories(selectedOptions);
             var summary = GenerateSummary(skillLevels, recommendedCategories);
 
-            // Create assessment record
             var assessment = new UserAssessment
             {
-                Id = Guid.NewGuid(),
+                AssessmentId = Guid.NewGuid(),
                 UserId = userId,
                 CompletedAt = DateTime.UtcNow,
                 ResultSummary = summary
             };
 
-            _context.UserAssessments.Add(assessment);
+            await assessmentRepository.AddAssessmentAsync(assessment);
 
-            // Add answers
             foreach (var answer in answers)
             {
                 var userAnswer = new UserAnswer
                 {
-                    Id = Guid.NewGuid(),
-                    AssessmentId = assessment.Id,
+                    AnswerId = Guid.NewGuid(),
+                    AssessmentId = assessment.AssessmentId,
                     QuestionId = answer.Key,
-                    OptionId = answer.Value
+                    SelectedOptionId = answer.Value
                 };
-                _context.UserAnswers.Add(userAnswer);
+                await assessmentRepository.AddUserAnswerAsync(userAnswer);
             }
 
-            await _context.SaveChangesAsync();
+            await assessmentRepository.SaveChangesAsync();
 
-            return ServiceResult<Guid>.SuccessResult(assessment.Id, "Assessment completed successfully!");
+            return ServiceResult<Guid>.SuccessResult(assessment.AssessmentId, "Assessment completed successfully!");
         }
         catch (Exception ex)
         {
@@ -110,26 +89,21 @@ public class AssessmentService : IAssessmentService
     {
         try
         {
-            var assessment = await _context.UserAssessments
-                .Include(a => a.Answers)
-                .ThenInclude(a => a.Option)
-                .FirstOrDefaultAsync(a => a.Id == assessmentId);
+            var assessment = await assessmentRepository.GetAssessmentWithAnswersAsync(assessmentId);
+            if (assessment == null) return null;
 
-            if (assessment == null)
-                return null;
-
-            var selectedOptions = assessment.Answers.Select(a => a.Option).ToList();
+            var selectedOptions = assessment.UserAnswers.Select(a => a.SelectedOption).ToList();
             var skillLevels = AnalyzeSkillLevels(selectedOptions);
             var recommendedCategories = AnalyzeRecommendedCategories(selectedOptions);
 
             return new AssessmentResultDto
             {
-                Id = assessment.Id,
+                Id = assessment.AssessmentId,
                 UserId = assessment.UserId,
                 CompletedAt = assessment.CompletedAt,
                 SkillLevels = skillLevels,
                 RecommendedCategories = recommendedCategories,
-                Summary = assessment.ResultSummary
+                Summary = assessment.ResultSummary ?? string.Empty
             };
         }
         catch
@@ -142,51 +116,32 @@ public class AssessmentService : IAssessmentService
     {
         try
         {
-            // Get latest assessment
-            var latestAssessment = await _context.UserAssessments
-                .Include(a => a.Answers)
-                .ThenInclude(a => a.Option)
-                .Where(a => a.UserId == userId)
-                .OrderByDescending(a => a.CompletedAt)
-                .FirstOrDefaultAsync();
-
+            var latestAssessment = await assessmentRepository.GetLatestUserAssessmentAsync(userId);
             if (latestAssessment == null)
             {
-                // Return general recommendations
                 return await GetGeneralRecommendationsAsync();
             }
 
-            var selectedOptions = latestAssessment.Answers.Select(a => a.Option).ToList();
+            var selectedOptions = latestAssessment.UserAnswers.Select(a => a.SelectedOption).ToList();
             var skillLevels = AnalyzeSkillLevels(selectedOptions);
             var recommendedCategories = AnalyzeRecommendedCategories(selectedOptions);
 
-            // Get the dominant skill level (e.g., Programming) or default
             var userLevel = skillLevels.ContainsKey("Programming") ? skillLevels["Programming"] : "Beginner";
 
-            // Get courses based on recommendations
-            var courses = await _context.Courses
-                .Include(c => c.Category)
-                .Include(c => c.Instructor)
-                .Where(c => recommendedCategories.Contains(c.Category.Name))
-                .Take(12)
-                .Select(c => new CourseRecommendationDto
-                {
-                    CourseId = c.Id,
-                    Title = c.Title,
-                    Description = c.Description,
-                    Category = c.Category.Name,
-                    Level = userLevel, 
-                    Price = c.Price,
-                    ImageUrl = c.ImageUrl,
-                    InstructorName = c.Instructor.Username,
-                    // Match score based on interest rank
-                    MatchScore = 95 - (recommendedCategories.IndexOf(c.Category.Name) * 10),
-                    MatchReason = $"This course aligns with your interest in {c.Category.Name} and your {userLevel.ToLower()} skill level."
-                })
-                .OrderByDescending(c => c.MatchScore)
-                .ToListAsync();
-
-            return courses;
+            var courses = await assessmentRepository.GetCoursesByCategoriesAsync(recommendedCategories, 12);
+            return courses.Select(c => new CourseRecommendationDto
+            {
+                CourseId = c.CourseId,
+                Title = c.Title,
+                Description = c.Description ?? string.Empty,
+                Category = c.Category.Name,
+                Level = userLevel,
+                Price = c.Price,
+                ImageUrl = c.ImageUrl,
+                InstructorName = c.Instructor.Username,
+                MatchScore = 95 - (recommendedCategories.IndexOf(c.Category.Name) * 10),
+                MatchReason = $"This course aligns with your interest in {c.Category.Name} and your {userLevel.ToLower()} skill level."
+            }).OrderByDescending(c => c.MatchScore).ToList();
         }
         catch
         {
@@ -271,38 +226,32 @@ public class AssessmentService : IAssessmentService
         };
     }
 
-    private Dictionary<string, string> AnalyzeSkillLevels(List<Data.Database.Entities.AssessmentOption> selectedOptions)
+    private Dictionary<string, string> AnalyzeSkillLevels(List<AssessmentOption> selectedOptions)
     {
         var skillLevels = new Dictionary<string, string>();
-
-        // Group by category and take the most frequent or highest skill level
         var skillGroups = selectedOptions
             .Where(o => !string.IsNullOrEmpty(o.SkillLevel) && o.SkillLevel != "None")
             .GroupBy(o => o.Category ?? "General");
 
         foreach (var group in skillGroups)
         {
-            // Simple logic: Use the most common skill level for that category
             var topLevel = group.GroupBy(x => x.SkillLevel)
-                                .OrderByDescending(g => g.Count())
-                                .First().Key;
-            
-            skillLevels[group.Key] = topLevel;
+                .OrderByDescending(g => g.Count())
+                .First().Key;
+            skillLevels[group.Key] = topLevel ?? "Beginner";
         }
 
-        // If specific categories are missing but we have a general programming level
         if (!skillLevels.ContainsKey("Programming"))
         {
             var progOption = selectedOptions.FirstOrDefault(o => o.Category == "Programming");
-            if (progOption != null) skillLevels["Programming"] = progOption.SkillLevel;
+            if (progOption != null) skillLevels["Programming"] = progOption.SkillLevel ?? "Beginner";
         }
 
         return skillLevels;
     }
 
-    private List<string> AnalyzeRecommendedCategories(List<Data.Database.Entities.AssessmentOption> selectedOptions)
+    private List<string> AnalyzeRecommendedCategories(List<AssessmentOption> selectedOptions)
     {
-        // Count interest hits per category
         var categoryScores = selectedOptions
             .Where(o => !string.IsNullOrEmpty(o.Category))
             .GroupBy(o => o.Category)
@@ -310,15 +259,13 @@ public class AssessmentService : IAssessmentService
             .OrderByDescending(x => x.Count)
             .ToList();
 
-        // Filters out meta-categories
         var metaCategories = new[] { "Programming", "Career Development", "Time Management", "Learning Style", "Academic", "Professional Growth", "Personal Development" };
-        
+
         var recommendations = categoryScores
             .Where(c => !metaCategories.Contains(c.Category))
-            .Select(c => c.Category)
+            .Select(c => c.Category!)
             .ToList();
 
-        // Fallback if no specific tech categories were found
         if (!recommendations.Any())
         {
             recommendations.AddRange(new[] { "Web Development", "Data Science", "Design" });
@@ -330,7 +277,7 @@ public class AssessmentService : IAssessmentService
     private string GenerateSummary(Dictionary<string, string> skillLevels, List<string> recommendedCategories)
     {
         var summary = "Based on your assessment, we've identified your learning preferences and skill levels. ";
-        
+
         if (skillLevels.Any())
         {
             summary += $"Your current programming level is {skillLevels.FirstOrDefault().Value?.ToLower()}. ";
@@ -348,27 +295,20 @@ public class AssessmentService : IAssessmentService
     {
         try
         {
-            // Return popular courses as general recommendations
-            var courses = await _context.Courses
-                .Include(c => c.Category)
-                .Include(c => c.Instructor)
-                .Take(8)
-                .Select(c => new CourseRecommendationDto
-                {
-                    CourseId = c.Id,
-                    Title = c.Title,
-                    Description = c.Description,
-                    Category = c.Category.Name,
-                    Level = "All Levels",
-                    Price = c.Price,
-                    ImageUrl = c.ImageUrl,
-                    InstructorName = c.Instructor.Username,
-                    MatchScore = 75,
-                    MatchReason = "Popular course for beginners"
-                })
-                .ToListAsync();
-
-            return courses;
+            var courses = await assessmentRepository.GetTopCoursesAsync(8);
+            return courses.Select(c => new CourseRecommendationDto
+            {
+                CourseId = c.CourseId,
+                Title = c.Title,
+                Description = c.Description ?? string.Empty,
+                Category = c.Category.Name,
+                Level = "All Levels",
+                Price = c.Price,
+                ImageUrl = c.ImageUrl,
+                InstructorName = c.Instructor.Username,
+                MatchScore = 75,
+                MatchReason = "Popular course for beginners"
+            }).ToList();
         }
         catch
         {

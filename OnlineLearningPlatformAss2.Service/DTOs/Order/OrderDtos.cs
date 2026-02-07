@@ -7,7 +7,7 @@ public class OrderViewModel
     public string Status { get; set; } = null!;
     public DateTime CreatedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
-    public string FormattedAmount => $"${TotalAmount:F2}";
+    public string FormattedAmount => $"{TotalAmount:N0}₫";
     public string FormattedDate => CreatedAt.ToString("MMM dd, yyyy");
     public string StatusBadgeClass => Status switch
     {
@@ -31,7 +31,7 @@ public class OrderItemViewModel
     public string Title { get; set; } = null!;
     public decimal Price { get; set; }
     public string? ImageUrl { get; set; }
-    public string FormattedPrice => $"${Price:F2}";
+    public string FormattedPrice => $"{Price:N0}₫";
 }
 
 public class TransactionViewModel
@@ -41,7 +41,7 @@ public class TransactionViewModel
     public string Status { get; set; } = null!;
     public string? PaymentMethod { get; set; }
     public DateTime CreatedAt { get; set; }
-    public string FormattedAmount => $"${Amount:F2}";
+    public string FormattedAmount => $"{Amount:N0}₫";
     public string FormattedDate => CreatedAt.ToString("MMM dd, yyyy HH:mm");
     public string StatusBadgeClass => Status switch
     {
@@ -58,5 +58,5 @@ public class OrderStatsViewModel
     public decimal TotalSpent { get; set; }
     public int CompletedOrders { get; set; }
     public int PendingOrders { get; set; }
-    public string FormattedTotalSpent => $"${TotalSpent:F2}";
+    public string FormattedTotalSpent => $"{TotalSpent:N0}₫";
 }

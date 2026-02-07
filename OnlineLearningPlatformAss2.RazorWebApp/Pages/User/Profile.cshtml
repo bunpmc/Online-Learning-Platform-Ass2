@@ -19,7 +19,6 @@
                 <hr>
                 <div class="text-start">
                     <p class="mb-2"><i class="bi bi-calendar-event me-2"></i> Joined @Model.UserProfile?.CreatedAt.ToString("MMMM yyyy")</p>
-                    <p class="mb-0"><i class="bi bi-geo-alt me-2"></i> @(Model.UserProfile?.Address ?? "No address set")</p>
                 </div>
             </div>
 
@@ -64,14 +63,7 @@
                         <label class="form-label text-muted small">Last Name</label>
                         <p class="fw-bold">@(Model.UserProfile?.LastName ?? "-")</p>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label text-muted small">Phone Number</label>
-                        <p class="fw-bold">@(Model.UserProfile?.Phone ?? "-")</p>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label text-muted small">Date of Birth</label>
-                        <p class="fw-bold">@(Model.UserProfile?.DateOfBirth?.ToString("MMM dd, yyyy") ?? "-")</p>
-                    </div>
+
                 </div>
             </div>
 
@@ -202,14 +194,7 @@
                             <input type="text" asp-for="UpdateRequest.LastName" class="form-control">
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Phone Number</label>
-                        <input type="text" asp-for="UpdateRequest.Phone" class="form-control">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Address</label>
-                        <textarea asp-for="UpdateRequest.Address" class="form-control" rows="2"></textarea>
-                    </div>
+
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>

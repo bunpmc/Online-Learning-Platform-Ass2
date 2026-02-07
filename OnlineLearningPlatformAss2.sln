@@ -25,4 +25,7 @@ Global
 		{F21A4258-E92B-4EEE-AFA2-15DB5658ABDC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F21A4258-E92B-4EEE-AFA2-15DB5658ABDC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
 EndGlobal

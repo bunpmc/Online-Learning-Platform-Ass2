@@ -1,18 +1,18 @@
-using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
-using OnlineLearningPlatformAss2.Data.Database;
-using OnlineLearningPlatformAss2.Data.Database.Entities;
+using OnlineLearningPlatformAss2.Data.Entities;
+using OnlineLearningPlatformAss2.Data.Entities;
 
 namespace OnlineLearningPlatformAss2.RazorWebApp.Hubs;
 
 public class ChatHub : Hub<IChatClient>
 {
-    private readonly OnlineLearningContext _context;
+    private readonly OnlineLearningSystemDbContext _context;
     private static readonly ConcurrentDictionary<string, string> AdminConnections = new();
     private static readonly ConcurrentDictionary<string, string> UserConnections = new();
     private static readonly ConcurrentDictionary<string, string> ActiveChats = new(); // UserId -> AdminId
 
-    public ChatHub(OnlineLearningContext context)
+    public ChatHub(OnlineLearningSystemDbContext context)
     {
         _context = context;
     }
@@ -60,7 +60,7 @@ public class ChatHub : Hub<IChatClient>
         {
             _context.ChatMessages.Add(new ChatMessage
             {
-                Id = Guid.NewGuid(),
+                MessageId = Guid.NewGuid(),
                 SenderId = senderId,
                 Content = message,
                 IsFromAdmin = false,
@@ -97,7 +97,7 @@ public class ChatHub : Hub<IChatClient>
         {
             _context.ChatMessages.Add(new ChatMessage
             {
-                Id = Guid.NewGuid(),
+                MessageId = Guid.NewGuid(),
                 SenderId = senderId,
                 Content = message,
                 IsFromAdmin = true,
@@ -115,3 +115,4 @@ public class ChatHub : Hub<IChatClient>
         await Clients.Client(userConnectionId).SupportEnded();
     }
 }
+

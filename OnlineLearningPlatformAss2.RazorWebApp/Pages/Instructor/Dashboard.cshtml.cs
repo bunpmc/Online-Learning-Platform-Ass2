@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using OnlineLearningPlatformAss2.Service.DTOs.Course;
@@ -45,7 +45,7 @@ public class DashboardModel : PageModel
     }
 
     public decimal AverageRating { get; set; }
-    public List<OnlineLearningPlatformAss2.Data.Database.Entities.Notification> Notifications { get; set; } = new();
+    public List<OnlineLearningPlatformAss2.Data.Entities.Notification> Notifications { get; set; } = new();
     public int UnreadNotifications { get; set; }
 
     public async Task<IActionResult> OnPostMarkAsReadAsync(Guid id)
@@ -54,3 +54,4 @@ public class DashboardModel : PageModel
         return new JsonResult(new { success = true });
     }
 }
+

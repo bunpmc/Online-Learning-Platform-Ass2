@@ -20,7 +20,7 @@ public class LearningPathListDto
     public DateTime? EnrolledAt { get; set; }
     
     // Helper properties
-    public string FormattedPrice => Price == 0 ? "Free" : Price.ToString("C");
+    public string FormattedPrice => Price == 0 ? "Miễn phí" : $"{Price:N0}₫";
     public string FormattedDuration => TotalDuration > 0 ? $"{TotalDuration / 60}h {TotalDuration % 60}m" : "TBD";
     public string BadgeText => IsCustomPath ? "Personalized" : "Popular";
 }
@@ -47,7 +47,7 @@ public class LearningPathDetailDto
     public Guid? CurrentCourseId { get; set; }
     
     // Helper properties
-    public string FormattedPrice => Price == 0 ? "Free" : Price.ToString("C");
+    public string FormattedPrice => Price == 0 ? "Miễn phí" : $"{Price:N0}₫";
     public int TotalCourses => Courses.Count;
     public int TotalDuration => Courses.Sum(c => c.Duration);
     public string FormattedDuration => TotalDuration > 0 ? $"{TotalDuration / 60}h {TotalDuration % 60}m" : "TBD";
@@ -99,7 +99,7 @@ public class UserLearningPathEnrollmentDto
     public string? CurrentCourseTitle { get; set; }
     
     // Helper properties
-    public string FormattedPrice => PathPrice == 0 ? "Free" : PathPrice.ToString("C");
+    public string FormattedPrice => PathPrice == 0 ? "Miễn phí" : $"{PathPrice:N0}₫";
     public bool IsCompleted => CompletedAt.HasValue;
     public string ProgressText => $"{CompletedCourses} of {TotalCourses} courses completed";
 }
@@ -134,5 +134,5 @@ public class LearningPathRecommendationDto
     public List<string> KeySkills { get; set; } = new();
     public bool IsPersonalized { get; set; }
     
-    public string FormattedPrice => Price == 0 ? "Free" : Price.ToString("C");
+    public string FormattedPrice => Price == 0 ? "Miễn phí" : $"{Price:N0}₫";
 }

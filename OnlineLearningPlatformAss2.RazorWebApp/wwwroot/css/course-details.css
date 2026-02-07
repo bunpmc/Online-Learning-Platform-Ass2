@@ -3,8 +3,8 @@
    ============================================ */
 
 .course-hero {
-  background: #0f172a;
-  /* Deep navy/slate for better contrast */
+  background: linear-gradient(135deg, #1a1c2e 0%, #30345e 100%);
+  /* Deep navy gradient for better aesthetic */
   color: white;
   padding: 64px 0;
   position: relative;

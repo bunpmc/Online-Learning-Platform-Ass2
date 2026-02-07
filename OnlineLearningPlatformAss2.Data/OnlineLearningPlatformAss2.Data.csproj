@@ -16,4 +16,11 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="Backup_Root\**" />
+    <Compile Remove="Backup_Database\**" />
+    <Compile Remove="Backup_Migrations\**" />
+    <Compile Remove="Backup_Repositories\**" />
+  </ItemGroup>
+
 </Project>

@@ -18,7 +18,7 @@ public class CourseViewModel
     public decimal Progress { get; set; }
     
     // Helper properties
-    public string FormattedPrice => Price == 0 ? "Free" : Price.ToString("C");
+    public string FormattedPrice => Price == 0 ? "Miễn phí" : $"{Price:N0}₫";
     public int TotalLessons { get; set; }
     public string FormattedDuration { get; set; } = "0h 0m";
     public string Language { get; set; } = "English";

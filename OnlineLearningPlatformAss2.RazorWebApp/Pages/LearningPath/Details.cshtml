@@ -93,10 +93,10 @@
                     <div class="course-preview-card">
                         <div class="preview-content">
                             <div class="price-section">
-                                <div class="current-price">@(Model.LearningPath.Price == 0 ? "Free" : Model.LearningPath.Price.ToString("C"))</div>
+                                <div class="current-price">@(Model.LearningPath.Price == 0 ? "Miễn phí" : string.Format("{0:N0}₫", Model.LearningPath.Price))</div>
                                 @if (Model.LearningPath.Price > 0)
                                 {
-                                    <div class="original-price">$@((Model.LearningPath.Price * 1.4m).ToString("F0"))</div>
+                                    <div class="original-price">@string.Format("{0:N0}₫", Model.LearningPath.Price * 1.4m)</div>
                                     <div class="discount-badge">30% off</div>
                                 }
                             </div>

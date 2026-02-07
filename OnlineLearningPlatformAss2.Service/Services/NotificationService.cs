@@ -1,24 +1,23 @@
-using Microsoft.EntityFrameworkCore;
-using OnlineLearningPlatformAss2.Data.Database;
-using OnlineLearningPlatformAss2.Data.Database.Entities;
+using OnlineLearningPlatformAss2.Data.Entities;
+using OnlineLearningPlatformAss2.Data.Repositories.Interfaces;
 using OnlineLearningPlatformAss2.Service.Services.Interfaces;
 
 namespace OnlineLearningPlatformAss2.Service.Services;
 
 public class NotificationService : INotificationService
 {
-    private readonly OnlineLearningContext _context;
+    private readonly INotificationRepository _notificationRepository;
 
-    public NotificationService(OnlineLearningContext context)
+    public NotificationService(INotificationRepository notificationRepository)
     {
-        _context = context;
+        _notificationRepository = notificationRepository;
     }
 
     public async Task SendNotificationAsync(Guid userId, string message, string type = "General")
     {
         var notification = new Notification
         {
-            Id = Guid.NewGuid(),
+            NotificationId = Guid.NewGuid(),
             UserId = userId,
             Message = message,
             Type = type,
@@ -26,37 +25,29 @@ public class NotificationService : INotificationService
             CreatedAt = DateTime.UtcNow
         };
 
-        _context.Notifications.Add(notification);
-        await _context.SaveChangesAsync();
+        await _notificationRepository.AddAsync(notification);
+        await _notificationRepository.SaveChangesAsync();
     }
 
     public async Task<IEnumerable<Notification>> GetUserNotificationsAsync(Guid userId, bool onlyUnread = false)
     {
-        var query = _context.Notifications
-            .Where(n => n.UserId == userId)
-            .OrderByDescending(n => n.CreatedAt)
-            .AsQueryable();
-
-        if (onlyUnread)
-        {
-            query = query.Where(n => !n.IsRead);
-        }
-
-        return await query.ToListAsync();
+        return await _notificationRepository.GetUserNotificationsAsync(userId, onlyUnread);
     }
 
     public async Task<bool> MarkAsReadAsync(Guid notificationId)
     {
-        var notification = await _context.Notifications.FindAsync(notificationId);
+        var notification = await _notificationRepository.GetByIdAsync(notificationId);
         if (notification == null) return false;
 
         notification.IsRead = true;
-        await _context.SaveChangesAsync();
+        await _notificationRepository.UpdateAsync(notification);
+        await _notificationRepository.SaveChangesAsync();
         return true;
     }
 
     public async Task<int> GetUnreadCountAsync(Guid userId)
     {
-        return await _context.Notifications.CountAsync(n => n.UserId == userId && !n.IsRead);
+        return await _notificationRepository.GetUnreadCountAsync(userId);
     }
 }
+

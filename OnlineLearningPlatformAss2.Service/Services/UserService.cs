@@ -1,28 +1,21 @@
 using OnlineLearningPlatformAss2.Service.Services.Interfaces;
 using OnlineLearningPlatformAss2.Service.DTOs.User;
 using OnlineLearningPlatformAss2.Service.Results;
-using OnlineLearningPlatformAss2.Data.Database;
-using OnlineLearningPlatformAss2.Data.Database.Entities;
+using OnlineLearningPlatformAss2.Data.Entities;
 using OnlineLearningPlatformAss2.Service.DTOs.Course;
-using Microsoft.EntityFrameworkCore;
+using OnlineLearningPlatformAss2.Data.Repositories.Interfaces;
 using BCrypt.Net;
 
 namespace OnlineLearningPlatformAss2.Service.Services;
 
-public class UserService : IUserService
+public class UserService(
+    IUserRepository userRepository,
+    IEnrollmentRepository enrollmentRepository) : IUserService
 {
-    private readonly OnlineLearningContext _context;
-
-    public UserService(OnlineLearningContext context)
-    {
-        _context = context;
-    }
-
     public async Task<ServiceResult<Guid>> RegisterAsync(UserRegisterDto dto)
     {
         try
         {
-            // Validate input
             if (string.IsNullOrWhiteSpace(dto.Username))
                 return ServiceResult<Guid>.FailureResult("Username is required.");
 
@@ -38,28 +31,17 @@ public class UserService : IUserService
             if (dto.Password.Length < 6)
                 return ServiceResult<Guid>.FailureResult("Password must be at least 6 characters long.");
 
-            // Check if username already exists
-            var existingUser = await _context.Users
-                .FirstOrDefaultAsync(u => u.Username.ToLower() == dto.Username.ToLower() || 
-                                         u.Email.ToLower() == dto.Email.ToLower());
-            
-            if (existingUser != null)
-            {
-                if (existingUser.Username.ToLower() == dto.Username.ToLower())
-                    return ServiceResult<Guid>.FailureResult("Username already exists.");
-                
-                if (existingUser.Email.ToLower() == dto.Email.ToLower())
-                    return ServiceResult<Guid>.FailureResult("Email already exists.");
-            }
+            var existingUserByUsername = await userRepository.GetByUsernameAsync(dto.Username);
+            if (existingUserByUsername != null)
+                return ServiceResult<Guid>.FailureResult("Username already exists.");
 
-            // Hash password
+            var existingUserByEmail = await userRepository.GetByEmailAsync(dto.Email);
+            if (existingUserByEmail != null)
+                return ServiceResult<Guid>.FailureResult("Email already exists.");
+
             var hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+            var defaultRole = await userRepository.GetRoleByNameAsync("user");
 
-            // Get default user role
-            var defaultRole = await _context.Roles
-                .FirstOrDefaultAsync(r => r.Name.ToLower() == "user");
-
-            // Create new user
             var user = new User
             {
                 Id = Guid.NewGuid(),
@@ -71,8 +53,8 @@ public class UserService : IUserService
                 HasCompletedAssessment = false
             };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            await userRepository.AddAsync(user);
+            await userRepository.SaveChangesAsync();
 
             return ServiceResult<Guid>.SuccessResult(user.Id);
         }
@@ -92,23 +74,15 @@ public class UserService : IUserService
             if (string.IsNullOrWhiteSpace(dto.Password))
                 return ServiceResult<UserLoginResponseDto>.FailureResult("Password is required.");
 
-            // Find user by username or email
             var usernameOrEmail = string.IsNullOrWhiteSpace(dto.UsernameOrEmail) ? dto.Email : dto.UsernameOrEmail;
-            var user = await _context.Users
-                .Include(u => u.Role)
-                .Include(u => u.Profile)
-                .FirstOrDefaultAsync(u => 
-                    u.Username.ToLower() == usernameOrEmail.ToLower() || 
-                    u.Email.ToLower() == usernameOrEmail.ToLower());
+            var user = await userRepository.GetUserWithRoleAndProfileAsync(usernameOrEmail);
 
             if (user == null)
                 return ServiceResult<UserLoginResponseDto>.FailureResult("Invalid username/email or password.");
 
-            // Verify password
             if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
                 return ServiceResult<UserLoginResponseDto>.FailureResult("Invalid username/email or password.");
 
-            // Create response DTO
             var response = new UserLoginResponseDto
             {
                 Id = user.Id,
@@ -135,18 +109,14 @@ public class UserService : IUserService
     {
         try
         {
-            var users = await _context.Users
-                .Include(u => u.Role)
-                .Select(u => new UserDto(
-                    u.Id,
-                    u.Username,
-                    u.Email,
-                    u.Role != null ? u.Role.Name : null,
-                    u.CreatedAt
-                ))
-                .ToListAsync();
-
-            return users;
+            var users = await userRepository.GetAllWithRolesAsync();
+            return users.Select(u => new UserDto(
+                u.Id,
+                u.Username,
+                u.Email,
+                u.Role?.Name,
+                u.CreatedAt
+            ));
         }
         catch
         {
@@ -158,9 +128,7 @@ public class UserService : IUserService
     {
         try
         {
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == userId);
-
+            var user = await userRepository.GetByIdAsync(userId);
             return user?.HasCompletedAssessment ?? false;
         }
         catch
@@ -173,9 +141,7 @@ public class UserService : IUserService
     {
         try
         {
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == userId);
-
+            var user = await userRepository.GetByIdAsync(userId);
             if (user != null)
             {
                 user.HasCompletedAssessment = completed;
@@ -184,12 +150,12 @@ public class UserService : IUserService
                     user.AssessmentCompletedAt = DateTime.UtcNow;
                 }
 
-                await _context.SaveChangesAsync();
+                await userRepository.UpdateAsync(user);
+                await userRepository.SaveChangesAsync();
             }
         }
         catch
         {
-            // Log error if needed
         }
     }
 
@@ -197,10 +163,7 @@ public class UserService : IUserService
     {
         try
         {
-            var user = await _context.Users
-                .Include(u => u.Role)
-                .FirstOrDefaultAsync(u => u.Id == userId);
-
+            var user = await userRepository.GetUserWithRoleAsync(userId);
             if (user == null)
                 return null;
 
@@ -222,52 +185,38 @@ public class UserService : IUserService
     {
         try
         {
-            var user = await _context.Users
-                .Include(u => u.Role)
-                .Include(u => u.Profile)
-                .FirstOrDefaultAsync(u => u.Id == userId);
+            var userEntity = await userRepository.GetUserWithRoleAndProfileByIdAsync(userId);
+            if (userEntity == null) return null;
 
-            if (user == null)
-                return null;
-
-            var enrolledCourses = await _context.Enrollments
-                .Include(e => e.Course)
-                .ThenInclude(c => c.Category)
-                .Include(e => e.Course.Instructor)
-                .Where(e => e.UserId == userId)
-                .OrderByDescending(e => e.EnrolledAt)
-                .ToListAsync();
+            var enrolledCourses = await enrollmentRepository.GetStudentEnrollmentsDetailedAsync(userId);
 
             var recentCourses = enrolledCourses.Take(3).Select(e => new CourseViewModel
             {
-                Id = e.Course.Id,
+                Id = e.Course.CourseId,
                 Title = e.Course.Title,
-                Description = e.Course.Description,
+                Description = e.Course.Description ?? string.Empty,
                 Price = e.Course.Price,
                 ImageUrl = e.Course.ImageUrl,
                 CategoryName = e.Course.Category.Name,
                 InstructorName = e.Course.Instructor.Username,
-                Rating = 0m, // Placeholder
+                Rating = 0m,
                 EnrollmentDate = e.EnrolledAt,
-                Progress = 0 // Will implement progress calculation later
+                Progress = 0
             }).ToList();
 
             return new UserProfileDto(
-                user.Id,
-                user.Username,
-                user.Email,
-                user.Role?.Name,
-                user.CreatedAt,
-                user.Profile?.FirstName,
-                user.Profile?.LastName,
-                user.Profile?.Phone,
-                user.Profile?.Address,
-                user.Profile?.DateOfBirth,
-                user.Profile?.AvatarUrl,
-                enrolledCourses.Count,
+                userEntity.Id,
+                userEntity.Username,
+                userEntity.Email,
+                userEntity.Role?.Name,
+                userEntity.CreatedAt,
+                userEntity.Profile?.FirstName,
+                userEntity.Profile?.LastName,
+                userEntity.Profile?.AvatarUrl,
+                enrolledCourses.Count(),
                 enrolledCourses.Count(e => e.Status == "Completed"),
-                enrolledCourses.Any() ? 0 : 0, // Placeholder for overall progress
-                user.HasCompletedAssessment,
+                enrolledCourses.Any() ? 0 : 0,
+                userEntity.HasCompletedAssessment,
                 recentCourses
             );
         }
@@ -281,9 +230,7 @@ public class UserService : IUserService
     {
         try
         {
-            return await _context.Users
-                .AnyAsync(u => u.Username.ToLower() == usernameOrEmail.ToLower() || 
-                              u.Email.ToLower() == usernameOrEmail.ToLower());
+            return await userRepository.ExistsAsync(usernameOrEmail);
         }
         catch
         {
@@ -293,39 +240,35 @@ public class UserService : IUserService
 
     public async Task UpdateProfileAsync(Guid userId, dynamic updateRequest)
     {
-        var user = await _context.Users
-            .Include(u => u.Profile)
-            .FirstOrDefaultAsync(u => u.Id == userId);
+        var profile = await userRepository.GetProfileByUserIdAsync(userId);
 
-        if (user == null) return;
-
-        if (user.Profile == null)
+        if (profile == null)
         {
-            user.Profile = new Profile { Id = Guid.NewGuid(), UserId = userId };
-            _context.Profiles.Add(user.Profile);
+            profile = new Profile { Id = Guid.NewGuid(), UserId = userId };
+            await userRepository.AddProfileAsync(profile);
         }
+        
+        try {
+            profile.FirstName = (string)updateRequest.FirstName;
+            profile.LastName = (string)updateRequest.LastName;
+            profile.AvatarUrl = (string)updateRequest.AvatarUrl;
+        } catch {}
 
-        user.Profile.FirstName = updateRequest.FirstName;
-        user.Profile.LastName = updateRequest.LastName;
-        user.Profile.Phone = updateRequest.Phone;
-        user.Profile.Address = updateRequest.Address;
-        user.Profile.AvatarUrl = updateRequest.AvatarUrl;
-
-        await _context.SaveChangesAsync();
+        await userRepository.UpdateProfileAsync(profile);
+        await userRepository.SaveChangesAsync();
     }
 
     public async Task<bool> UpgradeToInstructorAsync(Guid userId)
     {
-        var user = await _context.Users.FindAsync(userId);
+        var user = await userRepository.GetByIdAsync(userId);
         if (user == null) return false;
 
-        var instructorRole = await _context.Roles
-            .FirstOrDefaultAsync(r => r.Name.ToLower() == "instructor");
-
+        var instructorRole = await userRepository.GetRoleByNameAsync("instructor");
         if (instructorRole == null) return false;
 
         user.RoleId = instructorRole.Id;
-        await _context.SaveChangesAsync();
+        await userRepository.UpdateAsync(user);
+        await userRepository.SaveChangesAsync();
         return true;
     }
 }

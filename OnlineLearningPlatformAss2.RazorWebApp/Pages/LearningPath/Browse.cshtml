@@ -116,7 +116,7 @@
                                 <span class="current-price">@path.FormattedPrice</span>
                                 @if (path.Price > 0)
                                 {
-                                    <span class="original-price">$@((path.Price * 1.4m).ToString("F0"))</span>
+                                    <span class="original-price">@string.Format("{0:N0}₫", path.Price * 1.4m)</span>
                                 }
                             </div>
                             <a asp-page="/LearningPath/Details" asp-route-id="@path.Id" class="btn btn-primary">

@@ -1,23 +1,18 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using OnlineLearningPlatformAss2.Service.Services.Interfaces;
 using OnlineLearningPlatformAss2.Service.DTOs.Course;
-using OnlineLearningPlatformAss2.Data.Database;
-using OnlineLearningPlatformAss2.Data.Database.Entities;
 using System.Security.Claims;
-using Microsoft.EntityFrameworkCore;
 
 namespace OnlineLearningPlatformAss2.RazorWebApp.Pages.Course;
 
 public class DetailsModel : PageModel
 {
     private readonly ICourseService _courseService;
-    private readonly OnlineLearningContext _context;
 
-    public DetailsModel(ICourseService courseService, OnlineLearningContext context)
+    public DetailsModel(ICourseService courseService)
     {
         _courseService = courseService;
-        _context = context;
     }
 
     public CourseDetailViewModel? Course { get; set; }
@@ -44,7 +39,6 @@ public class DetailsModel : PageModel
 
         IsEnrolled = Course.IsEnrolled;
 
-        // Get related courses from same category
         var allCourses = await _courseService.GetAllCoursesAsync();
         RelatedCourses = allCourses
             .Where(c => c.CategoryName == Course.CategoryName && c.Id != Course.Id)

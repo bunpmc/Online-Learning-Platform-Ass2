@@ -24,7 +24,7 @@ public class CourseDetailViewModel
     public List<ReviewViewModel> Reviews { get; set; } = new();
     
     // Helper properties
-    public string FormattedPrice => Price == 0 ? "Free" : Price.ToString("C");
+    public string FormattedPrice => Price == 0 ? "Miễn phí" : $"{Price:N0}₫";
     public string RatingDisplay => new string('★', (int)Math.Round(Rating)) + new string('☆', 5 - (int)Math.Round(Rating));
     public int TotalLessons => Modules.Sum(m => m.Lessons.Count());
     public string FormattedDuration => TotalLessons > 0 ? $"{TotalLessons * 15}m" : "TBD"; // Estimate 15min per lesson
