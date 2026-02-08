@@ -17,18 +17,26 @@ public class LearnModel : PageModel
     private readonly IQuizService _quizService;
     private readonly IDiscussionService _discussionService;
     private readonly IReviewService _reviewService;
+    private readonly IAiAssistantService _aiAssistantService;
 
-    public LearnModel(ICourseService courseService, IQuizService quizService, IDiscussionService discussionService, IReviewService reviewService)
+    public LearnModel(ICourseService courseService, IQuizService quizService, IDiscussionService discussionService, IReviewService reviewService, IAiAssistantService aiAssistantService)
     {
         _courseService = courseService;
         _quizService = quizService;
         _discussionService = discussionService;
         _reviewService = reviewService;
+        _aiAssistantService = aiAssistantService;
     }
 
     public CourseLearnViewModel? CourseLearn { get; set; }
     public bool HasReviewed { get; set; }
     public string? ErrorMessage { get; set; }
+
+    // ... OnGetAsync logic remains same ...
+
+    // ... existing handlers ...
+
+
 
     public async Task<IActionResult> OnGetAsync(Guid id)
     {
@@ -45,6 +53,17 @@ public class LearnModel : PageModel
             if (enrollmentId.HasValue)
             {
                 CourseLearn = await _courseService.GetCourseLearnAsync(enrollmentId.Value);
+                // Ensure a lesson is selected if none is set
+                if (CourseLearn != null && CourseLearn.CurrentLesson == null && CourseLearn.Modules.Any())
+                {
+                    var firstLesson = CourseLearn.Modules.SelectMany(m => m.Lessons).FirstOrDefault();
+                    if (firstLesson != null)
+                    {
+                        CourseLearn.CurrentLesson = firstLesson;
+                        CourseLearn.CurrentLessonId = firstLesson.Id;
+                    }
+                }
+
                 HasReviewed = await _reviewService.HasUserReviewedAsync(userId, enrollmentId.Value); // Check by enrollment or course? Actually Review is by Course.
                 // Re-check ReviewService: it uses courseId.
                 HasReviewed = await _reviewService.HasUserReviewedAsync(userId, id);
@@ -63,44 +82,52 @@ public class LearnModel : PageModel
         return Page();
     }
 
-    public async Task<IActionResult> OnPostCompleteLessonAsync([FromBody] CompleteLessonRequest request)
+    public async Task<IActionResult> OnPostCompleteLessonAsync([FromBody] LearnCompleteLessonRequest request)
     {
-        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(userIdString, out var userId))
+        try 
         {
-            return new JsonResult(new { success = false, message = "User not found" });
-        }
-
-        var enrollmentId = await _courseService.GetEnrollmentIdAsync(userId, request.CourseId);
-        if (!enrollmentId.HasValue)
-        {
-            return new JsonResult(new { success = false, message = "Enrollment not found" });
-        }
-
-        // Check if lesson has a quiz and if it's passed
-        var quiz = await _quizService.GetQuizForLessonAsync(request.LessonId);
-        if (quiz != null)
-        {
-            var passed = await _quizService.HasPassedQuizAsync(userId, quiz.Id);
-            if (!passed)
+            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(userIdString, out var userId))
             {
-                return new JsonResult(new { 
-                    success = false, 
-                    message = "Bạn cần vượt qua bài kiểm tra (Quiz) của bài học này (đạt ít nhất 80%) trước khi đánh dấu hoàn thành." 
-                });
+                return new JsonResult(new { success = false, message = "User not found" });
             }
+
+            var enrollmentId = await _courseService.GetEnrollmentIdAsync(userId, request.CourseId);
+            if (!enrollmentId.HasValue)
+            {
+                return new JsonResult(new { success = false, message = "Enrollment not found" });
+            }
+
+            // Check if lesson has a quiz and if it's passed
+            var quiz = await _quizService.GetQuizForLessonAsync(request.LessonId);
+            if (quiz != null)
+            {
+                var passed = await _quizService.HasPassedQuizAsync(userId, quiz.Id);
+                if (!passed)
+                {
+                    return new JsonResult(new { 
+                        success = false, 
+                        message = "Bạn cần vượt qua bài kiểm tra (Quiz) của bài học này (đạt ít nhất 80%) trước khi đánh dấu hoàn thành." 
+                    });
+                }
+            }
+
+            var success = await _courseService.UpdateLessonProgressAsync(enrollmentId.Value, request.LessonId, true);
+            
+            // Fetch updated progress
+            var updatedLearn = await _courseService.GetCourseLearnAsync(enrollmentId.Value);
+
+            return new JsonResult(new { 
+                success, 
+                progress = updatedLearn?.Progress ?? 0,
+                isCourseCompleted = updatedLearn?.Progress >= 100,
+                certificateId = updatedLearn?.CertificateId
+            });
         }
-
-        var success = await _courseService.UpdateLessonProgressAsync(enrollmentId.Value, request.LessonId, true);
-        
-        // Fetch updated progress
-        var updatedLearn = await _courseService.GetCourseLearnAsync(enrollmentId.Value);
-
-        return new JsonResult(new { 
-            success, 
-            progress = updatedLearn?.Progress ?? 0,
-            isCourseCompleted = updatedLearn?.Progress >= 100
-        });
+        catch (Exception ex)
+        {
+            return new JsonResult(new { success = false, message = $"Server Error: {ex.Message}" });
+        }
     }
 
     public async Task<IActionResult> OnGetQuizAsync(Guid lessonId)
@@ -143,7 +170,79 @@ public class LearnModel : PageModel
         return new JsonResult(new { success = result });
     }
 
-    public class CompleteLessonRequest
+    public async Task<IActionResult> OnPostUpdateLastViewAsync([FromBody] LearnUpdateLastViewRequest request)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdString, out var userId)) return Unauthorized();
+
+        var enrollmentId = await _courseService.GetEnrollmentIdAsync(userId, request.CourseId);
+        if (!enrollmentId.HasValue) return NotFound();
+
+        await _courseService.UpdateLastViewedLessonAsync(enrollmentId.Value, request.LessonId);
+        
+        if (request.Position.HasValue)
+        {
+             await _courseService.UpdateVideoProgressAsync(enrollmentId.Value, request.LessonId, request.Position.Value);
+        }
+
+        return new JsonResult(new { success = true });
+    }
+
+    public async Task<IActionResult> OnPostGenerateSummaryAsync([FromBody] LearnAiRequest request)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdString, out var userId)) return Unauthorized();
+
+        var enrollmentId = await _courseService.GetEnrollmentIdAsync(userId, request.CourseId);
+        if (!enrollmentId.HasValue) return NotFound();
+
+        var transcript = await _courseService.GetLessonTranscriptAsync(enrollmentId.Value, request.LessonId);
+        
+        string systemContext = "You are an AI assistant for an online learning platform. Provide a concise summary of the following video transcript.";
+        string prompt = string.IsNullOrEmpty(transcript) ? "The video has no transcript available." : transcript;
+        
+        var summary = await _aiAssistantService.GetChatResponseAsync(prompt, systemContext);
+        
+        return new JsonResult(new { summary });
+    }
+
+    public async Task<IActionResult> OnPostAskAiAsync([FromBody] LearnAiQuestionRequest request)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdString, out var userId)) return Unauthorized();
+
+        var enrollmentId = await _courseService.GetEnrollmentIdAsync(userId, request.CourseId);
+        if (!enrollmentId.HasValue) return NotFound();
+
+        var transcript = await _courseService.GetLessonTranscriptAsync(enrollmentId.Value, request.LessonId);
+        
+        string systemContext = "You are an AI assistant. Answer the user's question based ONLY on the provided video transcript. You MUST cite the timestamp where the information is found in your answer (e.g., [00:15] or [01:23]). If the user asks where a topic is discussed, provide the specific timestamp.";
+        string context = string.IsNullOrEmpty(transcript) ? "No transcript available." : $"Transcript: {transcript}";
+        
+        var answer = await _aiAssistantService.GetChatResponseAsync(request.Question, $"{systemContext}\n\n{context}");
+        
+        return new JsonResult(new { answer });
+    }
+
+    public class LearnUpdateLastViewRequest
+    {
+        public Guid CourseId { get; set; }
+        public Guid LessonId { get; set; }
+        public int? Position { get; set; }
+    }
+
+    public class LearnAiRequest
+    {
+        public Guid CourseId { get; set; }
+        public Guid LessonId { get; set; }
+    }
+
+    public class LearnAiQuestionRequest : LearnAiRequest
+    {
+        public string Question { get; set; } = string.Empty;
+    }
+
+    public class LearnCompleteLessonRequest
     {
         public Guid CourseId { get; set; }
         public Guid LessonId { get; set; }

@@ -45,4 +45,5 @@ public interface ICourseRepository
     Task<Certificate?> GetCertificateByIdAsync(Guid certificateId);
     Task<bool> CertificateExistsAsync(Guid enrollmentId);
     Task AddCertificateAsync(Certificate certificate);
+    Task<Certificate?> GetCertificateByEnrollmentIdAsync(Guid enrollmentId);
 }

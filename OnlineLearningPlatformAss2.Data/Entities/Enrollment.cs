@@ -17,6 +17,8 @@ public partial class Enrollment
 
     public DateTime? CompletedAt { get; set; }
 
+    public Guid? LastViewedLessonId { get; set; }
+
     public virtual ICollection<Certificate> Certificates { get; set; } = new List<Certificate>();
 
     public virtual Course Course { get; set; } = null!;

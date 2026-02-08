@@ -211,6 +211,17 @@ public class CourseRepository(OnlineLearningSystemDbContext context) : ICourseRe
         return await context.Certificates.AnyAsync(c => c.EnrollmentId == enrollmentId);
     }
 
+    public async Task<Certificate?> GetCertificateByEnrollmentIdAsync(Guid enrollmentId)
+    {
+        return await context.Certificates
+            .Include(c => c.Enrollment)
+                .ThenInclude(e => e.User)
+            .Include(c => c.Enrollment)
+                .ThenInclude(e => e.Course)
+                .ThenInclude(co => co.Instructor)
+            .FirstOrDefaultAsync(c => c.EnrollmentId == enrollmentId);
+    }
+
     public async Task AddCertificateAsync(Certificate certificate)
     {
         await context.Certificates.AddAsync(certificate);

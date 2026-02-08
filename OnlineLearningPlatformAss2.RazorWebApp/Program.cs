@@ -57,10 +57,12 @@ builder.Services.AddScoped<ILearningPathService, LearningPathService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IQuizService, QuizService>();
+builder.Services.AddHttpClient<IAiAssistantService, GroqApiService>();
 builder.Services.AddScoped<IDiscussionService, DiscussionService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IVnPayService, VnPayService>();
+builder.Services.AddHttpClient<ITranscriptService, TranscriptService>();
 
 // Add SignalR
 builder.Services.AddSignalR();

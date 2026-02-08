@@ -25,6 +25,8 @@ public class OrderRepository(OnlineLearningSystemDbContext context) : IOrderRepo
         return await context.Orders
             .AsNoTracking()
             .Include(o => o.Transactions)
+            .Include(o => o.Course)
+            .Include(o => o.Path)
             .FirstOrDefaultAsync(o => o.OrderId == orderId);
     }
 

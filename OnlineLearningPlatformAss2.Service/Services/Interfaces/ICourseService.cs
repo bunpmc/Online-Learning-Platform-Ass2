@@ -12,6 +12,9 @@ public interface ICourseService
     Task<IEnumerable<CategoryViewModel>> GetAllCategoriesAsync();
     Task<CourseLearnViewModel?> GetCourseLearnAsync(Guid enrollmentId);
     Task<bool> UpdateLessonProgressAsync(Guid enrollmentId, Guid lessonId, bool isCompleted);
+    Task<bool> UpdateVideoProgressAsync(Guid enrollmentId, Guid lessonId, int position);
+    Task<bool> UpdateLastViewedLessonAsync(Guid enrollmentId, Guid lessonId);
+    Task<string> GetLessonTranscriptAsync(Guid enrollmentId, Guid lessonId);
     Task<Guid?> GetEnrollmentIdAsync(Guid userId, Guid courseId);
     Task<bool> SubmitReviewAsync(Guid userId, SubmitReviewDto review);
     Task<IEnumerable<ReviewViewModel>> GetCourseReviewsAsync(Guid courseId);

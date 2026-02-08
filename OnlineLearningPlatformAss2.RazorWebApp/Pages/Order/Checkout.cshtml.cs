@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using OnlineLearningPlatformAss2.Service.Services.Interfaces;
 using OnlineLearningPlatformAss2.Service.DTOs.Order;
 using System.Security.Claims;
+using OnlineLearningPlatformAss2.Service.Services;
+using Microsoft.Extensions.Logging;
 
 namespace OnlineLearningPlatformAss2.RazorWebApp.Pages.Order;
 
@@ -13,15 +15,24 @@ public class CheckoutModel : PageModel
     private readonly IOrderService _orderService;
     private readonly ICourseService _courseService;
     private readonly ILearningPathService _learningPathService;
+    private readonly IVnPayService _vnPayService;
+    private readonly IUserService _userService;
+    private readonly ILogger<CheckoutModel> _logger;
 
     public CheckoutModel(
         IOrderService orderService, 
         ICourseService courseService, 
-        ILearningPathService learningPathService)
+        ILearningPathService learningPathService,
+        IVnPayService vnPayService,
+        IUserService userService,
+        ILogger<CheckoutModel> logger)
     {
         _orderService = orderService;
         _courseService = courseService;
         _learningPathService = learningPathService;
+        _vnPayService = vnPayService;
+        _userService = userService;
+        _logger = logger;
     }
 
     [BindProperty]
@@ -80,9 +91,19 @@ public class CheckoutModel : PageModel
             return RedirectToPage("/User/Login");
         }
 
+        // Verify user exists in database to prevent FK constraint violation
+        var user = await _userService.GetUserByIdAsync(userId);
+        if (user == null)
+        {
+            _logger.LogWarning("User ID {UserId} from claims not found in database. Redirecting to login.", userId);
+            // Ideally sign out here, but redirecting to login is a safe fallback
+            return RedirectToPage("/User/Login"); 
+        }
+
         try
         {
             OrderViewModel order;
+            // Create pending order
             if (ItemType == "Course")
             {
                 order = await _orderService.CreateCourseOrderAsync(userId, ItemId);
@@ -92,29 +113,37 @@ public class CheckoutModel : PageModel
                 order = await _orderService.CreateLearningPathOrderAsync(userId, ItemId);
             }
 
-            // Directly process payment for demo / assignment purposes
-            var success = await _orderService.ProcessPaymentAsync(order.Id, PaymentMethod);
+            // DEBUG LOGS
+            _logger.LogInformation("Order created: {OrderId}", order.Id);
+            _logger.LogInformation("Payment Method: {PaymentMethod}", PaymentMethod);
 
-            if (success)
+            if (PaymentMethod == "VNPay")
             {
-                TempData["SuccessMessage"] = $"Thank you! Your purchase of \"{ItemTitle}\" was successful.";
-                if (ItemType == "Course")
+                var vnPayModel = new Service.DTOs.VnPay.VnPayRequestModel
                 {
-                    return RedirectToPage("/Course/MyCourses");
-                }
-                else
-                {
-                    return RedirectToPage("/LearningPath/MyPaths");
-                }
+                    Amount = (double)order.TotalAmount,
+                    CreatedDate = DateTime.Now,
+                    OrderDescription = $"{ItemType} Payment",
+                    FullName = User.Identity?.Name ?? "Customer",
+                    OrderId = order.Id
+                };
+
+                var paymentUrl = _vnPayService.CreatePaymentUrl(HttpContext, vnPayModel);
+                
+                // DEBUG LOGS
+                _logger.LogInformation("Payment URL: {PaymentUrl}", paymentUrl);
+                
+                return Redirect(paymentUrl);
             }
-            else
-            {
-                ModelState.AddModelError("", "Payment processing failed. Please try again.");
-                return await OnGetAsync(ItemId, ItemType);
-            }
+
+            ModelState.AddModelError("", "Invalid payment method selected.");
+            return await OnGetAsync(ItemId, ItemType);
         }
         catch (Exception ex)
         {
+            // ERROR LOGS
+            _logger.LogError(ex, "Checkout Error: {Message}", ex.Message);
+            
             ModelState.AddModelError("", ex.Message);
             return await OnGetAsync(ItemId, ItemType);
         }

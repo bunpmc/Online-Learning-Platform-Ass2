@@ -9,7 +9,8 @@ namespace OnlineLearningPlatformAss2.Service.Services;
 public class CourseService(
     ICourseRepository courseRepository,
     IEnrollmentRepository enrollmentRepository,
-    IReviewService reviewService) : ICourseService
+    IReviewService reviewService,
+    ITranscriptService transcriptService) : ICourseService
 {
     public async Task<IEnumerable<CourseViewModel>> GetFeaturedCoursesAsync(int? limit = null)
     {
@@ -312,31 +313,127 @@ public class CourseService(
         var completedLessons = enrollment.LessonProgresses.Count(lp => lp.IsCompleted);
         var progress = totalLessons > 0 ? (int)((decimal)completedLessons / totalLessons * 100) : 0;
 
+        var certificate = await courseRepository.GetCertificateByEnrollmentIdAsync(enrollmentId);
+
         return new CourseLearnViewModel
         {
             EnrollmentId = enrollment.EnrollmentId,
             CourseId = enrollment.Course.CourseId,
             CourseTitle = enrollment.Course.Title,
-            CurrentLessonId = enrollment.Course.Modules.FirstOrDefault()?.Lessons.FirstOrDefault()?.LessonId,
+            CurrentLessonId = enrollment.LastViewedLessonId ?? enrollment.Course.Modules.FirstOrDefault()?.Lessons.FirstOrDefault()?.LessonId,
             Progress = progress,
+            CertificateId = certificate?.CertificateId,
             Modules = enrollment.Course.Modules.Select(m => new ModuleViewModel
             {
                 Id = m.ModuleId,
                 Title = m.Title,
                 Description = m.Description ?? string.Empty,
                 OrderIndex = m.OrderIndex,
-                Lessons = m.Lessons.Select(l => new LessonViewModel
+                Lessons = m.Lessons.Select(l => 
                 {
-                    Id = l.LessonId,
-                    Title = l.Title,
-                    Content = l.Content ?? string.Empty,
-                    VideoUrl = l.VideoUrl,
-                    Duration = l.Duration ?? 15,
-                    OrderIndex = l.OrderIndex,
-                    IsCompleted = enrollment.LessonProgresses.Any(lp => lp.LessonId == l.LessonId && lp.IsCompleted)
+                    var progress = enrollment.LessonProgresses.FirstOrDefault(lp => lp.LessonId == l.LessonId);
+                    return new LessonViewModel
+                    {
+                        Id = l.LessonId,
+                        Title = l.Title,
+                        Content = l.Content ?? string.Empty,
+                        VideoUrl = l.VideoUrl,
+                        Duration = l.Duration ?? 15,
+                        OrderIndex = l.OrderIndex,
+                        IsCompleted = progress?.IsCompleted ?? false,
+                        LastWatchedPosition = progress?.LastWatchedPosition
+                    };
                 }).OrderBy(l => l.OrderIndex).ToList()
             }).OrderBy(m => m.OrderIndex).ToList()
         };
+    }
+
+    public async Task<bool> UpdateLastViewedLessonAsync(Guid enrollmentId, Guid lessonId)
+    {
+        var enrollment = await enrollmentRepository.GetByIdAsync(enrollmentId);
+        if (enrollment == null) return false;
+
+        enrollment.LastViewedLessonId = lessonId;
+        await enrollmentRepository.UpdateAsync(enrollment);
+        await enrollmentRepository.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<string> GetLessonTranscriptAsync(Guid enrollmentId, Guid lessonId)
+    {
+        var progress = await enrollmentRepository.GetLessonProgressAsync(enrollmentId, lessonId);
+        
+        if (progress != null && !string.IsNullOrEmpty(progress.Transcript))
+        {
+            return progress.Transcript;
+        }
+
+        var lesson = await courseRepository.GetLessonByIdAsync(lessonId);
+        if (lesson == null || string.IsNullOrEmpty(lesson.VideoUrl))
+        {
+            return string.Empty;
+        }
+
+        string transcript = string.Empty;
+        try 
+        {
+            transcript = await transcriptService.GenerateTranscriptFromVideoAsync(lesson.VideoUrl);
+        }
+        catch 
+        {
+            return string.Empty;
+        }
+
+        if (string.IsNullOrEmpty(transcript))
+        {
+             return string.Empty;
+        }
+
+        if (progress == null)
+        {
+            progress = new LessonProgress
+            {
+                ProgressId = Guid.NewGuid(),
+                EnrollmentId = enrollmentId,
+                LessonId = lessonId,
+                LastWatchedPosition = 0,
+                Transcript = transcript,
+                LastAccessedAt = DateTime.UtcNow
+            };
+            await enrollmentRepository.AddLessonProgressAsync(progress);
+        }
+        else
+        {
+            progress.Transcript = transcript;
+            await enrollmentRepository.UpdateLessonProgressAsync(progress);
+        }
+        await enrollmentRepository.SaveChangesAsync();
+        return transcript;
+    }
+
+    public async Task<bool> UpdateVideoProgressAsync(Guid enrollmentId, Guid lessonId, int position)
+    {
+        var progress = await enrollmentRepository.GetLessonProgressAsync(enrollmentId, lessonId);
+        if (progress == null)
+        {
+            progress = new LessonProgress
+            {
+                ProgressId = Guid.NewGuid(),
+                EnrollmentId = enrollmentId,
+                LessonId = lessonId,
+                LastWatchedPosition = position,
+                LastAccessedAt = DateTime.UtcNow
+            };
+            await enrollmentRepository.AddLessonProgressAsync(progress);
+        }
+        else
+        {
+            progress.LastWatchedPosition = position;
+            progress.LastAccessedAt = DateTime.UtcNow;
+            await enrollmentRepository.UpdateLessonProgressAsync(progress);
+        }
+        await enrollmentRepository.SaveChangesAsync();
+        return true;
     }
 
     public async Task<bool> UpdateLessonProgressAsync(Guid enrollmentId, Guid lessonId, bool isCompleted)
@@ -495,13 +592,14 @@ public class CourseService(
         var exists = await courseRepository.CertificateExistsAsync(enrollment.EnrollmentId);
         if (exists) return true;
 
+        var certificateId = Guid.NewGuid();
         var certificate = new Certificate
         {
-            CertificateId = Guid.NewGuid(),
+            CertificateId = certificateId,
             EnrollmentId = enrollment.EnrollmentId,
             SerialNumber = $"CERT-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..8].ToUpper()}",
             IssueDate = DateTime.UtcNow,
-            PdfUrl = $"/Certificates/View/{Guid.NewGuid()}"
+            PdfUrl = $"/Certificates/View/{certificateId}"
         };
 
         await courseRepository.AddCertificateAsync(certificate);

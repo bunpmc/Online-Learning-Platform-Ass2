@@ -358,7 +358,7 @@ else
         async function enrollInCourse(courseId) {
             const enrollBtn = document.getElementById('enrollBtn');
             const enrollBtnText = document.getElementById('enrollBtnText');
-            const isFree = '@(Model.Course.Price == 0)'.toLowerCase() === 'true';
+            const isFree = '@((Model.Course?.Price ?? 0) == 0)'.toLowerCase() === 'true';
 
             if (isFree) {
                 if (enrollBtn) {

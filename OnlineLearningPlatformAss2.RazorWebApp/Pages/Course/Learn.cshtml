@@ -15,6 +15,7 @@
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/course-learn.css" asp-append-version="true" />
 </head>
 
@@ -23,147 +24,230 @@
     {
         <div class="alert alert-danger m-3">
             @Model.ErrorMessage
+            <a asp-page="/Course/MyCourses" class="btn btn-sm btn-outline-danger ms-3">Back to My Courses</a>
         </div>
     }
 
     @if (Model.CourseLearn != null)
     {
-        <div class="learning-container">
-            <div class="sidebar">
-                <div class="course-header">
-                    <h1 class="course-title">@Model.CourseLearn.CourseTitle</h1>
-                    <div class="progress-info">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="text-white-50 small" id="progressText">@Model.CourseLearn.Progress% complete</span>
-                        </div>
-                        <div class="progress" style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px;">
-                            <div id="courseProgressBar" class="progress-bar bg-primary" role="progressbar" style="width: @Model.CourseLearn.Progress%" aria-valuenow="@Model.CourseLearn.Progress" aria-valuemin="0" aria-valuemax="100"></div>
-                        </div>
+        <div class="d-flex flex-column h-100">
+            <!-- Top Header -->
+            <header class="course-header-bar d-flex align-items-center justify-content-between px-4 py-2 bg-white border-bottom">
+                <div class="d-flex align-items-center">
+                    <a asp-page="/Course/MyCourses" class="text-decoration-none text-dark me-3">
+                        <i class="bi bi-arrow-left fs-5"></i>
+                    </a>
+                    <div>
+                        <h1 class="h6 mb-0 fw-bold">@Model.CourseLearn.CourseTitle</h1>
                     </div>
                 </div>
-
-                <div class="search-lessons">
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text border-0 bg-transparent text-muted"><i class="bi bi-search"></i></span>
-                        <input type="text" id="lessonSearch" class="form-control" placeholder="Search lessons..." oninput="filterLessons()">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="d-flex flex-column align-items-end">
+                        <span class="small text-muted mb-1">Your Progress: <span id="progressText" class="fw-bold text-success">@Model.CourseLearn.Progress%</span></span>
+                        <div class="progress" style="width: 150px; height: 6px;">
+                            <div id="courseProgressBar" class="progress-bar bg-success" role="progressbar" style="width: @Model.CourseLearn.Progress%" aria-valuenow="@Model.CourseLearn.Progress" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
                     </div>
+                    <a href="/Certificates/View/@Model.CourseLearn.CertificateId" id="certificateBtn" class="btn btn-outline-success btn-sm @(Model.CourseLearn.Progress < 100 ? "d-none" : "")" target="_blank">
+                        <i class="bi bi-patch-check me-1"></i> Certificate
+                    </a>
                 </div>
+            </header>
 
-                <div class="modules-list">
-                    @for (int i = 0; i < Model.CourseLearn.Modules.Count; i++)
-                    {
-                        var module = Model.CourseLearn.Modules[i];
-                        <div class="module-item">
-                            <button class="module-header" type="button" data-bs-toggle="collapse" 
-                                    data-bs-target="#module-@i" aria-expanded="@(i == 0 ? "true" : "false")">
-                                <div>
-                                    <h3 class="module-title">@module.Title</h3>
-                                    <div class="module-meta">@module.Lessons.Count lessons • @module.FormattedDuration</div>
-                                </div>
-                                <i class="bi bi-chevron-down"></i>
-                            </button>
+            <div class="container-fluid bg-light h-100 p-0">
+                <div class="row h-100 g-0">
+                    <!-- Main Content (Video & Tabs) - Left Side -->
+                    <main class="col-lg-9 col-md-8 h-100 overflow-auto scroll-smooth">
+                        <div class="p-4 mx-auto" style="max-width: 1200px;">
                             
-                            <div class="collapse @(i == 0 ? "show" : "")" id="module-@i">
-                                <div class="lessons-list">
-                                    @foreach (var lesson in module.Lessons)
+                            <!-- Video Section -->
+                            <div class="video-card bg-black rounded-4 shadow-sm overflow-hidden mb-4">
+                                <div class="video-container w-100" id="videoContainer">
+                                    @if (!string.IsNullOrEmpty(Model.CourseLearn.CurrentLesson?.VideoUrl))
                                     {
-                                        <div class="lesson-item @(lesson.IsCurrent ? "current" : "") @(lesson.IsCompleted ? "completed" : "")" id="lesson-@lesson.Id" onclick="selectLesson('@lesson.Id', '@JavaScriptEncoder.Default.Encode(lesson.Title)', '@lesson.VideoUrl', '@JavaScriptEncoder.Default.Encode(lesson.Content)')">
-                                            <div class="lesson-title-section">
-                                                <div class="lesson-icon @(lesson.IsCompleted ? "completed" : lesson.IsCurrent ? "current" : "pending")">
-                                                    @if (lesson.IsCompleted)
-                                                    {
-                                                        <i class="bi bi-check"></i>
-                                                    }
-                                                    else if (lesson.IsCurrent)
-                                                    {
-                                                        <i class="bi bi-play-fill"></i>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span>@lesson.OrderIndex</span>
-                                                    }
-                                                </div>
-                                                <h4 class="lesson-title">@lesson.Title</h4>
+                                        <div class="ratio ratio-16x9">
+                                            <iframe src="@Model.CourseLearn.CurrentLesson.VideoUrl" allowfullscreen></iframe>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex align-items-center justify-content-center ratio ratio-16x9 bg-light text-secondary">
+                                            <div class="text-center">
+                                                <i class="bi bi-file-text display-1 mb-3"></i>
+                                                <p class="h5">Included Reading Material</p>
                                             </div>
-                                            <div class="lesson-duration">@lesson.FormattedDuration</div>
                                         </div>
                                     }
                                 </div>
                             </div>
-                        </div>
-                    }
-                </div>
 
-                <div class="navigation-controls">
-                    <a href="javascript:history.back()" class="back-btn">
-                        <i class="bi bi-arrow-left"></i>
-                        Back to Course
-                    </a>
-                </div>
-            </div>
-
-            <div class="content-area">
-                <div class="video-container" id="videoContainer">
-                    @if (!string.IsNullOrEmpty(Model.CourseLearn.CurrentLesson?.VideoUrl))
-                    {
-                        <iframe class="video-player" src="@Model.CourseLearn.CurrentLesson.VideoUrl" frameborder="0" allowfullscreen></iframe>
-                    }
-                    else
-                    {
-                        <div class="d-flex align-items-center justify-content-center h-100 text-white">
-                            <div class="text-center">
-                                <i class="bi bi-play-circle mb-3" style="font-size: 4rem;"></i>
-                                <h3>No Video Available</h3>
-                                <p>This lesson contains text content only.</p>
-                            </div>
-                        </div>
-                    }
-                </div>
-
-                <div class="lesson-info">
-                    @if (Model.CourseLearn.CurrentLesson != null)
-                    {
-                        <h2 class="mb-3" id="lessonTitle">@Model.CourseLearn.CurrentLesson.Title</h2>
-                        <div class="lesson-content">
-                            <p class="lesson-description" id="lessonDescription">@Model.CourseLearn.CurrentLesson.Content</p>
-                        </div>
-                        <div class="lesson-actions">
-                            <button class="btn btn-success" id="markCompleteBtn" onclick="markAsCompleted()">
-                                <i class="bi bi-check-circle me-2"></i>
-                                Mark as Complete
-                            </button>
-                            <a href="/Certificates/View?id=@Model.CourseLearn.EnrollmentId" id="certificateBtn" class="btn btn-primary @(Model.CourseLearn.Progress < 100 ? "d-none" : "")" target="_blank">
-                                <i class="bi bi-patch-check me-2"></i>
-                                View Certificate
-                            </a>
-                        </div>
-
-                        <div id="quizSection" class="mt-5 d-none">
-                            <div class="card border-0 shadow-sm p-4">
-                                <div id="quizContent"></div>
-                                <div id="quizResult" class="mt-4 d-none"></div>
-                            </div>
-                        </div>
-
-                        <div class="discussion-section mt-5 border-top pt-5">
-                            <h4 class="fw-bold mb-4">Questions & Answers</h4>
-                            <div class="card border-0 bg-light p-4 mb-4 rounded-3">
-                                <h6 class="fw-bold mb-3">Ask a question</h6>
-                                <div class="mb-3">
-                                    <textarea id="commentInput" class="form-control border-0 shadow-sm" rows="3" placeholder="What's on your mind?"></textarea>
+                            <!-- Lesson Info & Actions -->
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h2 class="h4 fw-bold mb-1" id="lessonTitle">@(Model.CourseLearn.CurrentLesson?.Title ?? "Select a Lesson")</h2>
+                                    <p class="text-muted small mb-0">
+                                        Author: <span class="fw-bold text-dark">@Model.CourseLearn.CourseTitle</span>
+                                    </p>
                                 </div>
-                                <div class="text-end">
-                                    <button class="btn btn-primary rounded-pill px-4" id="postCommentBtn" onclick="submitComment()">Post Question</button>
+                                <div class="d-flex gap-2">
+                                     <button class="btn btn-light border-0 rounded-circle p-2" title="Favorite">
+                                        <i class="bi bi-heart"></i>
+                                    </button>
+                                    <button class="btn btn-light border-0 rounded-circle p-2" title="Share">
+                                        <i class="bi bi-share"></i>
+                                    </button>
+                                    @if (Model.CourseLearn.Progress >= 100)
+                                    {
+                                        <a href="/Certificates/View/@Model.CourseLearn.CertificateId" id="certificateBtnMain" class="btn btn-outline-primary rounded-pill px-4" target="_blank">
+                                            Certificate
+                                        </a>
+                                    }
+                                    <button class="btn btn-primary rounded-pill px-4" id="markCompleteBtn" onclick="markAsCompleted()">
+                                        Next Lesson <i class="bi bi-arrow-right ms-2"></i>
+                                    </button>
                                 </div>
                             </div>
-                            <div id="commentsList" class="mt-4">
-                                <div class="text-center py-5 text-muted">
-                                    <div class="spinner-border spinner-border-sm mb-3"></div>
-                                    <p>Loading discussions...</p>
+
+                            <!-- Tabs -->
+                            <div class="bg-white rounded-4 shadow-sm p-4">
+                                <ul class="nav nav-pills mb-4 gap-2" id="courseTabs" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active rounded-pill px-4" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">Overview</button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link rounded-pill px-4" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary" type="button" role="tab">AI Summary</button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link rounded-pill px-4" id="qa-tab" data-bs-toggle="tab" data-bs-target="#qa" type="button" role="tab">Q&A</button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link rounded-pill px-4" id="reviews-tab" data-bs-toggle="tab" data-bs-target="#reviews" type="button" role="tab">Reviews</button>
+                                    </li>
+                                </ul>
+
+                                <div class="tab-content" id="courseTabsContent">
+                                    <!-- Overview Tab -->
+                                    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                                         <div class="lesson-description text-secondary" id="lessonDescription">
+                                            @Html.Raw(Model.CourseLearn.CurrentLesson?.Content ?? "Please select a lesson to start learning.")
+                                        </div>
+                                         <!-- Quiz Section -->
+                                        <div id="quizSection" class="mt-5 d-none">
+                                            <div class="card border-0 bg-light rounded-4">
+                                                <div class="card-body p-4">
+                                                    <h5 class="fw-bold text-primary mb-3">Lesson Quiz</h5>
+                                                    <div id="quizContent"></div>
+                                                    <div id="quizResult" class="mt-3 d-none"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- AI Summary Tab -->
+                                    <div class="tab-pane fade" id="summary" role="tabpanel">
+                                        <div class="text-center py-4" id="summaryLoading" style="display:none;">
+                                            <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+                                            <p class="mt-2 text-muted">Generating AI Summary & Analyzing Video...</p>
+                                        </div>
+                                        <div id="summaryContent" class="fs-6 lh-lg text-dark mb-4"></div>
+                                        <div class="text-center mb-4" id="generateSummaryBtnContainer">
+                                             <button class="btn btn-primary rounded-pill px-4" onclick="generateSummary()">
+                                                <i class="bi bi-magic me-2"></i>Generate Video Summary
+                                             </button>
+                                        </div>
+                                        
+                                        <hr class="my-4 text-muted">
+                                        
+                                        <h5 class="fw-bold mb-3"><i class="bi bi-robot me-2 text-primary"></i>Ask AI about this video</h5>
+                                        <div class="input-group mb-3">
+                                            <input type="text" id="aiQuestionInput" class="form-control rounded-start-pill ps-3" placeholder="Ask about concepts, timestamps, etc.">
+                                            <button class="btn btn-outline-primary rounded-end-pill px-4" type="button" onclick="askAi()">Ask</button>
+                                        </div>
+                                        <div id="aiAnswer" class="bg-light p-3 rounded-3 d-none border-start border-4 border-primary">
+                                            <h6 class="fw-bold text-primary mb-1">AI Answer:</h6>
+                                            <p class="mb-0 text-secondary" id="aiAnswerText"></p>
+                                        </div>
+                                    </div>
+                                    <!-- Q&A & Reviews (Keep inner content similar but Ensure ID matches) -->
+                                    <div class="tab-pane fade" id="qa" role="tabpanel">
+                                        <!-- ... Q&A Content ... -->
+                                         <div class="card border-light shadow-sm mb-4">
+                                            <div class="card-body">
+                                                <h6 class="fw-bold mb-3">Ask a question</h6>
+                                                <textarea id="commentInput" class="form-control mb-3 scroll-smooth" rows="3" placeholder="What requires clarification?"></textarea>
+                                                <div class="d-flex justify-content-end">
+                                                    <button class="btn btn-primary px-4 rounded-pill" id="postCommentBtn" onclick="submitComment()">Post Question</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="commentsList" class="ps-2"></div>
+                                    </div>
+                                    <div class="tab-pane fade" id="reviews" role="tabpanel">
+                                         <div class="text-center py-5">
+                                            <p class="text-muted">Reviews are available after completing the course.</p>
+                                            @if (Model.CourseLearn?.Progress >= 100)
+                                            {
+                                                <button class="btn btn-outline-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#reviewModal">Write a Review</button>
+                                            }
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
+
                         </div>
-                    }
+                    </main>
+
+                    <!-- Sidebar (Course Content) - Right Side -->
+                     <aside class="col-lg-3 col-md-4 bg-white border-start h-100 d-flex flex-column shadow-sm z-1">
+                        <div class="p-4 border-bottom">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2">Full Course</span>
+                                <span class="fw-bold text-dark">@Model.CourseLearn.Progress%</span>
+                            </div>
+                            <h5 class="fw-bold mb-4">Course Content</h5>
+                            
+                             <div class="input-group input-group-sm mb-0">
+                                <span class="input-group-text bg-light border-end-0 rounded-start-pill ps-3"><i class="bi bi-search"></i></span>
+                                <input type="text" id="lessonSearch" class="form-control bg-light border-start-0 rounded-end-pill" placeholder="Search lessons..." oninput="filterLessons()">
+                            </div>
+                        </div>
+                        
+                        <div class="flex-grow-1 overflow-auto custom-scrollbar p-3">
+                            <div class="course-timeline">
+                                @for (int i = 0; i < Model.CourseLearn.Modules.Count; i++)
+                                {
+                                    var module = Model.CourseLearn.Modules[i];
+                                    <div class="module-group mb-4">
+                                        <h6 class="text-uppercase text-muted small fw-bold mb-3 ps-2">Module @(i + 1): @module.Title</h6>
+                                        <div class="list-group list-group-flush">
+                                            @foreach (var lesson in module.Lessons)
+                                            {
+                                                <div class="lesson-card p-3 mb-2 rounded-3 border-0 d-flex align-items-center justify-content-between cursor-pointer @(lesson.IsCurrent ? "bg-primary-subtle" : "bg-light")"
+                                                     id="lesson-@lesson.Id"
+                                                     onclick="selectLesson('@lesson.Id')">
+                                                    <div class="d-flex align-items-center gap-3">
+                                                        <div class="icon-box rounded-circle d-flex align-items-center justify-content-center @(lesson.IsCurrent ? "bg-primary text-white" : (lesson.IsCompleted ? "bg-success text-white" : "bg-white text-secondary border"))" style="width: 32px; height: 32px; min-width: 32px;">
+                                                             @if (lesson.IsCompleted) { <i class="bi bi-check"></i> }
+                                                             else if (lesson.IsCurrent) { <i class="bi bi-play-fill"></i> }
+                                                             else { <i class="bi bi-lock-fill" style="font-size: 0.8rem;"></i> }
+                                                        </div>
+                                                        <div>
+                                                            <h6 class="mb-0 small fw-bold @(lesson.IsCurrent ? "text-primary" : "text-dark")">@lesson.Title</h6>
+                                                        </div>
+                                                    </div>
+                                                    <span class="small text-muted">@lesson.FormattedDuration</span>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                         <div class="p-4 border-top bg-light">
+                            <a asp-page="/Course/MyCourses" class="btn btn-outline-dark w-100 rounded-pill fw-bold">Back to Courses</a>
+                        </div>
+                    </aside>
                 </div>
             </div>
         </div>
@@ -172,18 +256,17 @@
         <div class="modal fade" id="reviewModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 shadow-lg">
-                    <div class="modal-header bg-primary text-white border-0">
-                        <h5 class="modal-title fw-bold">Congratulations!</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title fw-bold">Rate this course</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4 text-center">
                         <div class="mb-4">
-                            <i class="bi bi-trophy text-warning" style="font-size: 4rem;"></i>
-                            <h4 class="mt-3 fw-bold">Course Completed!</h4>
-                            <p class="text-muted">Would you like to share your experience with others?</p>
+                            <h4 class="mt-2 fw-bold">How was your learning experience?</h4>
+                            <p class="text-muted small">Your feedback helps us improve the course content.</p>
                         </div>
                         <div class="rating-input mb-4">
-                            <div class="star-rating h2 text-warning">
+                            <div class="star-rating h1 text-warning gap-2 d-flex justify-content-center">
                                 <i class="bi bi-star rating-star" data-rating="1"></i>
                                 <i class="bi bi-star rating-star" data-rating="2"></i>
                                 <i class="bi bi-star rating-star" data-rating="3"></i>
@@ -193,10 +276,10 @@
                             <input type="hidden" id="selectedRating" value="0">
                         </div>
                         <div class="mb-3 text-start">
-                            <label class="form-label fw-bold">Your Review (Optional)</label>
-                            <textarea id="reviewComment" class="form-control" rows="3"></textarea>
+                            <label class="form-label fw-bold small text-uppercase text-muted">Review</label>
+                            <textarea id="reviewComment" class="form-control" rows="4" placeholder="Tell us what you liked or what could be improved..."></textarea>
                         </div>
-                        <button class="btn btn-primary w-100 rounded-pill py-2 fw-bold" onclick="submitReview()">Submit Review & View Certificate</button>
+                        <button class="btn btn-primary w-100 py-2 fw-bold" onclick="submitReview()">Submit Review</button>
                     </div>
                 </div>
             </div>
@@ -204,156 +287,474 @@
     }
     else
     {
-        <div class="container-fluid d-flex align-items-center justify-content-center" style="height: 100vh;">
+         <div class="d-flex align-items-center justify-content-center vh-100 bg-light">
             <div class="text-center">
-                <h2>Course Not Found</h2>
-                <p>The course you're trying to access could not be loaded.</p>
-                <a asp-page="/Course/MyCourses" class="btn btn-primary">Back to My Courses</a>
+                <i class="bi bi-exclamation-circle display-1 text-muted mb-3"></i>
+                <h2 class="h4 text-dark">Course Not Found</h2>
+                <p class="text-secondary">The course you're trying to access could not be loaded.</p>
+                <a asp-page="/Course/MyCourses" class="btn btn-primary mt-3">Back to My Courses</a>
             </div>
         </div>
     }
 
+
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // JavaScript for interactivity
+        const modulesData = @Json.Serialize(Model.CourseLearn?.Modules ?? new List<OnlineLearningPlatformAss2.Service.DTOs.Course.ModuleViewModel>());
+        const lessonsMap = {};
+        modulesData.forEach(module => {
+            module.lessons.forEach(lesson => {
+                lessonsMap[lesson.id] = lesson;
+            });
+        });
+
         let currentCourseId = '@(Model.CourseLearn?.CourseId)';
         let currentLessonId = '@(Model.CourseLearn?.CurrentLessonId)';
-        let hasReviewed = @(Model.HasReviewed ? "true" : "false");
 
-        async function selectLesson(lessonId, lessonTitle, videoUrl, description) {
-            currentLessonId = lessonId;
-            document.getElementById('lessonTitle').textContent = lessonTitle;
-            document.getElementById('lessonDescription').textContent = description;
-            
-            const videoContainer = document.getElementById('videoContainer');
-            if (videoUrl && videoUrl !== 'null' && videoUrl !== '') {
-                videoContainer.innerHTML = `<iframe class="video-player" src="${videoUrl}" frameborder="0" allowfullscreen></iframe>`;
-            } else {
-                videoContainer.innerHTML = `<div class="d-flex align-items-center justify-content-center h-100 text-white text-center"><div><i class="bi bi-play-circle mb-3" style="font-size: 4rem;"></i><h3>No Video Available</h3></div></div>`;
+        document.addEventListener('DOMContentLoaded', function() {
+            if ((!currentLessonId || !lessonsMap[currentLessonId]) && modulesData.length > 0 && modulesData[0].lessons.length > 0) {
+                 const firstLesson = modulesData[0].lessons[0];
+                 selectLesson(firstLesson.id);
+            } 
+            else if (currentLessonId && lessonsMap[currentLessonId]) {
+                 const el = document.getElementById('lesson-' + currentLessonId);
+                 if(el) {
+                     el.scrollIntoView({ behavior: 'auto', block: 'center' });
+                     const collapseId = el.closest('.accordion-collapse')?.id;
+                     if (collapseId) {
+                         const bsCollapse = new bootstrap.Collapse(document.getElementById(collapseId), { toggle: false });
+                         bsCollapse.show();
+                     }
+                 }
             }
+            // Load initial comments if lesson is selected
+            if (currentLessonId) loadComments(currentLessonId);
+
+            // Save progress on tab close
+            window.addEventListener('beforeunload', function() {
+                const video = document.getElementById('videoPlayer');
+                if (video && !video.paused && currentLessonId) {
+                    updateProgress(currentLessonId, video.currentTime);
+                }
+            });
+        });
+
+        async function selectLesson(lessonId) {
+            const lesson = lessonsMap[lessonId];
+            if (!lesson) return;
+
+            currentLessonId = lessonId;
             
-            document.querySelectorAll('.lesson-item').forEach(item => item.classList.remove('current'));
+            // UI Updates
+            document.getElementById('lessonTitle').textContent = lesson.title;
+            const descEl = document.getElementById('lessonDescription');
+            if(descEl) descEl.innerHTML = lesson.content;
+            
+            // Video Player
+            const videoContainer = document.getElementById('videoContainer');
+            const markCompleteBtn = document.getElementById('markCompleteBtn'); 
+
+            if (lesson.videoUrl && lesson.videoUrl !== 'null' && lesson.videoUrl.trim() !== '') {
+                if (lesson.videoUrl.includes('youtube.com/embed')) {
+                    videoContainer.innerHTML = `<div class="ratio ratio-16x9"><iframe src="${lesson.videoUrl}" allowfullscreen></iframe></div>`;
+                } else {
+                    videoContainer.innerHTML = `
+                        <div class="ratio ratio-16x9 bg-black">
+                            <video id="videoPlayer" class="w-100 h-100" controls>
+                                <source src="${lesson.videoUrl}" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>`;
+                    
+                    const video = document.getElementById('videoPlayer');
+                    
+                    // Restore position if not completed, or start from beginning? 
+                    // Usually resume is good even if completed.
+                    if (lesson.lastWatchedPosition > 0) {
+                        video.currentTime = lesson.lastWatchedPosition;
+                    }
+
+                    let lastUpdateTime = 0;
+                    video.ontimeupdate = function() {
+                        const now = Date.now();
+                        // Update every 5 seconds OR if it's been a while since last update
+                        if (now - lastUpdateTime > 5000 && !video.paused) { 
+                            updateProgress(lessonId, video.currentTime);
+                            lastUpdateTime = now;
+                        }
+                    };
+                    video.onpause = function() {
+                        // Avoid conflict with onended
+                        if (!video.ended) {
+                             updateProgress(lessonId, video.currentTime);
+                        }
+                    };
+                    video.onended = async function() {
+                        // Serialize updates to avoid DB concurrency issues (Unique violation on insert)
+                        await updateProgress(lessonId, video.duration); // Ensure 100% position
+                        markAsCompleted();
+                    };
+                }
+                
+                // Button Logic
+                if(markCompleteBtn) {
+                     markCompleteBtn.style.display = 'inline-block';
+                     updateMarkCompleteButton(lesson.isCompleted);
+                     
+                     if (lesson.isCompleted) {
+                         markCompleteBtn.onclick = function() { nextLesson(); }; 
+                     } else {
+                         markCompleteBtn.onclick = function() { markAsCompleted(); };
+                     }
+                }
+            } else {
+                videoContainer.innerHTML = `<div class="d-flex align-items-center justify-content-center py-5 bg-light text-secondary"><div class="text-center"><i class="bi bi-file-text display-1 mb-3"></i><p class="h5">Reading Material</p></div></div>`;
+                if(markCompleteBtn) {
+                     markCompleteBtn.style.display = 'inline-block';
+                     updateMarkCompleteButton(lesson.isCompleted);
+
+                     if (lesson.isCompleted) {
+                         markCompleteBtn.onclick = function() { nextLesson(); };
+                     } else {
+                         markCompleteBtn.onclick = function() { markAsCompleted(); };
+                     }
+                }
+            }
+
+            // Highlight Active Lesson
+            document.querySelectorAll('.lesson-card').forEach(item => {
+                item.classList.remove('active-lesson');
+                item.querySelector('.icon-box i').classList.remove('text-primary'); 
+                // Restore default icon if not completed/current
+                const icon = item.querySelector('.icon-box i');
+                if(!icon.classList.contains('text-success') && !icon.classList.contains('text-primary')) {
+                     icon.className = 'bi bi-play-circle text-muted'; // Default
+                }
+            });
+            
             const selectedItem = document.getElementById('lesson-' + lessonId);
             if (selectedItem) {
-                selectedItem.classList.add('current');
-                // Ensure the module is expanded
-                const moduleContent = selectedItem.closest('.collapse');
-                if (moduleContent && !moduleContent.classList.contains('show')) {
-                    new bootstrap.Collapse(moduleContent).show();
+                selectedItem.classList.add('active-lesson');
+                const icon = selectedItem.querySelector('.icon-box i');
+                if (!icon.classList.contains('text-success')) {
+                    icon.className = 'bi bi-play-circle-fill text-primary';
                 }
             }
-            
-            loadComments();
+
+            // Reset AI Tab
+            const sumContent = document.getElementById('summaryContent');
+            if(sumContent) sumContent.innerHTML = '';
+            const genBtn = document.getElementById('generateSummaryBtnContainer');
+            if(genBtn) genBtn.style.display = 'block';
+            const aiAns = document.getElementById('aiAnswer');
+            if(aiAns) aiAns.classList.add('d-none');
+            const aiInp = document.getElementById('aiQuestionInput');
+            if(aiInp) aiInp.value = '';
+
+            // Initial sync (just to set LastViewedLessonId, don't overwrite position with 0 if just loading)
+             // Check if we are switching lessons. If so, update LastViewed. 
+             // IMPORTANT: Don't reset position to 0 here. Pass null for position to only update LastViewedLessonId
+            updateLastViewed(lessonId); 
+            loadComments(lessonId);
         }
 
-        function filterLessons() {
-            const term = document.getElementById('lessonSearch').value.toLowerCase();
-            const lessons = document.querySelectorAll('.lesson-item');
-            const modules = document.querySelectorAll('.module-item');
+        function updateMarkCompleteButton(isCompleted) {
+            const btn = document.getElementById('markCompleteBtn');
+            if (!btn) return;
+            
+            if (isCompleted) {
+                btn.innerHTML = 'Next Lesson <i class="bi bi-arrow-right ms-2"></i>';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-outline-primary');
+            } else {
+                btn.innerHTML = 'Mark as Complete <i class="bi bi-check-lg ms-2"></i>';
+                btn.classList.remove('btn-outline-primary');
+                btn.classList.add('btn-primary');
+            }
+        }
 
-            lessons.forEach(lesson => {
-                const title = lesson.querySelector('.lesson-title').textContent.toLowerCase();
-                const isMatch = title.includes(term);
-                lesson.style.display = isMatch ? 'flex' : 'none';
-            });
+        async function updateProgress(lessonId, position) {
+             const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+             // Use keepalive for reliability on page unload
+             try {
+                await fetch('?handler=UpdateLastView', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                    body: JSON.stringify({ courseId: currentCourseId, lessonId: lessonId, position: Math.floor(position) }),
+                    keepalive: true
+                });
+             } catch(e) { console.error("Sync failed", e); }
+        }
 
-            modules.forEach(module => {
-                const hasVisibleLessons = Array.from(module.querySelectorAll('.lesson-item')).some(l => l.style.display !== 'none');
-                module.style.display = hasVisibleLessons || term === '' ? 'block' : 'none';
-                if (term !== '' && hasVisibleLessons) {
-                    const collapse = module.querySelector('.collapse');
-                    if (collapse && !collapse.classList.contains('show')) {
-                        new bootstrap.Collapse(collapse).show();
-                    }
-                }
-            });
+        async function updateLastViewed(lessonId) {
+             const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+             try {
+                await fetch('?handler=UpdateLastView', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                    body: JSON.stringify({ courseId: currentCourseId, lessonId: lessonId, position: null }) 
+                });
+             } catch(e) { console.error("UpdateLastView failed", e); }
+        }
+        
+        async function generateSummary() {
+            document.getElementById('summaryLoading').style.display = 'block';
+            document.getElementById('summaryContent').innerHTML = '';
+            document.getElementById('generateSummaryBtnContainer').style.display = 'none';
+            
+            try {
+                const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+                const response = await fetch('?handler=GenerateSummary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                    body: JSON.stringify({ courseId: currentCourseId, lessonId: currentLessonId })
+                });
+                const result = await response.json();
+                document.getElementById('summaryContent').innerHTML = result.summary ? result.summary.replace(/\n/g, '<br>') : 'No summary available.';
+            } catch(e) {
+                document.getElementById('summaryContent').textContent = "Failed to generate summary.";
+                document.getElementById('generateSummaryBtnContainer').style.display = 'block';
+            } finally {
+                document.getElementById('summaryLoading').style.display = 'none';
+            }
+        }
+        
+        async function askAi() {
+            const q = document.getElementById('aiQuestionInput').value;
+            if(!q) return;
+            
+            const ansText = document.getElementById('aiAnswerText');
+            ansText.textContent = "AI is thinking...";
+            document.getElementById('aiAnswer').classList.remove('d-none');
+            
+            try {
+                const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+                const response = await fetch('?handler=AskAi', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                    body: JSON.stringify({ courseId: currentCourseId, lessonId: currentLessonId, question: q })
+                });
+                const result = await response.json();
+                ansText.textContent = result.answer;
+            } catch(e) {
+                ansText.textContent = "AI failed to respond. Please try again.";
+            }
         }
 
         async function markAsCompleted() {
             const btn = document.getElementById('markCompleteBtn');
-            const originalText = btn.innerHTML;
+            const originalHtml = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Marking...';
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
             
             try {
+                const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
                 const response = await fetch('?handler=CompleteLesson', {
                     method: 'POST',
-                    headers: {
+                    headers: { 
                         'Content-Type': 'application/json',
-                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''
+                        'RequestVerificationToken': token
                     },
                     body: JSON.stringify({ courseId: currentCourseId, lessonId: currentLessonId })
                 });
 
+                if (!response.ok) {
+                     const text = await response.text();
+                     throw new Error(`Server Error (${response.status}): ${text}`);
+                }
+
                 const result = await response.json();
                 if (result.success) {
-                    const lessonItem = document.getElementById('lesson-' + currentLessonId);
+                    const lessonKey = 'lesson-' + currentLessonId;
+                    const lessonItem = document.getElementById(lessonKey);
+                    
                     if (lessonItem) {
-                        lessonItem.classList.add('completed');
-                        const icon = lessonItem.querySelector('.lesson-icon');
-                        icon.className = 'lesson-icon completed';
-                        icon.innerHTML = '<i class="bi bi-check"></i>';
+                        const icon = lessonItem.querySelector('.icon-box i');
+                        icon.className = 'bi bi-check-circle-fill text-success';
                     }
 
                     const progressBar = document.getElementById('courseProgressBar');
                     if (progressBar) {
                         progressBar.style.width = result.progress + '%';
-                        document.getElementById('progressText').textContent = result.progress + '% complete';
+                        document.getElementById('progressText').textContent = result.progress + '%';
                     }
+                    
+                    // Use helper to update button state
+                    updateMarkCompleteButton(true);
+
+                    // Re-bind click event
+                    btn.onclick = function() { nextLesson(); };
+
+                    // Update local state
+                    if(lessonsMap[currentLessonId]) lessonsMap[currentLessonId].isCompleted = true;
 
                     if (result.isCourseCompleted) {
-                        document.getElementById('certificateBtn').classList.remove('d-none');
-                        if (!hasReviewed) {
-                            new bootstrap.Modal(document.getElementById('reviewModal')).show();
+                        const certBtn = document.getElementById('certificateBtn');
+                        if(certBtn) {
+                             if(result.certificateId) certBtn.href = '/Certificates/View/' + result.certificateId;
+                             certBtn.classList.remove('d-none');
                         }
-                    } else {
-                        // Auto-play Next Logic
-                        const lessons = Array.from(document.querySelectorAll('.lesson-item'));
-                        const currentIndex = lessons.findIndex(l => l.id === 'lesson-' + currentLessonId);
-                        if (currentIndex !== -1 && currentIndex < lessons.length - 1) {
-                            const nextLesson = lessons[currentIndex + 1];
-                            setTimeout(() => {
-                                nextLesson.click();
-                                // Scroller feedback
-                                nextLesson.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                            }, 1500);
-                        }
+                        
+                        // Also update main button if it starts existing (it might not be in DOM if conditioned by razor)
+                        // If it is in DOM but hidden, we can show it?
+                        // Actually, the main button below title is rendered nicely only if progress >= 100 on load.
+                        // We can inject it or just rely on the top bar button. 
+                        // Let's reload page? No, better show modal.
+                        
+                        // We can also update the review modal certificate link
+                        // window.open(certBtn.href, '_blank'); // Maybe auto open? No, popups blocked.
+
+                        new bootstrap.Modal(document.getElementById('reviewModal')).show();
                     }
-                } else if (result.message) {
-                    alert(result.message);
+                } else {
+                    alert(result.message || "Could not complete lesson.");
                 }
+            } catch (error) {
+                console.error("Error completing lesson:", error);
+                alert(error.message || "An error occurred. Please try again.");
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = originalText;
+                if (!lessonsMap[currentLessonId]?.isCompleted) { // Only reset if failed
+                     // If failed, restore original state (Mark as Complete)
+                     updateMarkCompleteButton(false);
+                     btn.onclick = function() { markAsCompleted(); };
+                }
             }
         }
 
-        async function submitReview() {
-            const rating = document.getElementById('selectedRating').value;
-            const comment = document.getElementById('reviewComment').value;
-
-            if (rating == 0) {
-                alert('Please select a rating');
-                return;
+        function nextLesson() {
+            let found = false;
+            let nextId = null;
+            
+            for (let m of modulesData) {
+                for (let l of m.lessons) {
+                    if (found) {
+                        nextId = l.id;
+                        break;
+                    }
+                    if (l.id === currentLessonId) {
+                        found = true;
+                    }
+                }
+                if (nextId) break;
             }
+            
+            if (nextId) {
+                selectLesson(nextId);
+            } else {
+                alert("Congratulations! You have completed all lessons in this course.");
+            }
+        }
 
-            const response = await fetch('?handler=SubmitReview', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''
-                },
-                body: JSON.stringify({ courseId: currentCourseId, rating: parseInt(rating), comment: comment })
+        // Search Filter
+        function filterLessons() {
+            const term = document.getElementById('lessonSearch').value.toLowerCase();
+            document.querySelectorAll('.lesson-card').forEach(item => {
+                const title = item.querySelector('h6').textContent.toLowerCase(); // Adjusted selector for title
+                const parent = item.closest('.module-group'); // Corrected parent selector // This selector might need adjustment if module-item class is not on parent
+                // Based on loop: class="module-group"
+                const moduleGroup = item.closest('.module-group');
+
+                if (title.includes(term)) {
+                    item.classList.remove('d-none');
+                    if (moduleGroup) moduleGroup.style.display = 'block';
+                } else {
+                    item.classList.add('d-none');
+                }
             });
+        }
 
-            const result = await response.json();
-            if (result.success) {
-                hasReviewed = true;
-                bootstrap.Modal.getInstance(document.getElementById('reviewModal')).hide();
-                window.open(document.getElementById('certificateBtn').href, '_blank');
+        // Q&A Functions
+        async function loadComments(lessonId) {
+            const list = document.getElementById('commentsList');
+            if(!list) return;
+            
+            list.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+            
+            try {
+                const response = await fetch(`?handler=Comments&lessonId=${lessonId}`);
+                const comments = await response.json();
+                
+                if (!comments || comments.length === 0) {
+                    list.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-chat-dots fs-1 d-block mb-2"></i><p>No questions yet. Be the first to ask!</p></div>';
+                    return;
+                }
+
+                list.innerHTML = comments.map(c => renderComment(c)).join('');
+            } catch (e) {
+                list.innerHTML = '<p class="text-danger text-center">Failed to load discussions.</p>';
             }
         }
 
-        // Star Interactions
+        function renderComment(c, isReply = false) {
+            return `
+                <div class="d-flex gap-3 mb-4 ${isReply ? 'ms-5 mt-3' : 'border-bottom pb-4'}">
+                    <div class="flex-shrink-0">
+                        <div class="avatar-circle bg-light text-primary fw-bold d-flex align-items-center justify-content-center rounded-circle border" style="width: 40px; height: 40px;">
+                            ${c.username.charAt(0).toUpperCase()}
+                        </div>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div>
+                                <span class="fw-bold text-dark">${c.username}</span>
+                                ${c.isInstructor ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2 rounded-pill small">Instructor</span>' : ''}
+                            </div>
+                            <small class="text-muted">${new Date(c.createdAt).toLocaleDateString()}</small>
+                        </div>
+                        <p class="mb-2 text-secondary" style="font-size: 0.95rem;">${c.content}</p>
+                        ${c.replies && c.replies.length ? c.replies.map(r => renderComment(r, true)).join('') : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function submitComment() {
+            const input = document.getElementById('commentInput');
+            const content = input.value.trim();
+            if (!content) return;
+
+            const btn = document.getElementById('postCommentBtn');
+            btn.disabled = true;
+            
+            try {
+                const token = document.getElementsByName('__RequestVerificationToken')[0]?.value;
+                const response = await fetch('?handler=PostComment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                    body: JSON.stringify({ lessonId: currentLessonId, content: content }) 
+                });
+                
+                input.value = '';
+                loadComments(currentLessonId);
+            } catch(e) {
+                alert('Failed to post comment');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // Review Submission
+        async function submitReview() {
+             const rating = document.getElementById('selectedRating').value;
+             const comment = document.getElementById('reviewComment').value;
+             if(rating == 0) { alert('Please select a star rating.'); return; }
+
+             const token = document.getElementsByName('__RequestVerificationToken')[0]?.value;
+             await fetch('?handler=SubmitReview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                body: JSON.stringify({ courseId: currentCourseId, rating: parseInt(rating), comment: comment }) 
+             });
+             
+             bootstrap.Modal.getInstance(document.getElementById('reviewModal')).hide();
+             alert('Review submitted! Thank you.');
+             window.open(document.getElementById('certificateBtn').href, '_blank');
+        }
+
+        // Star Rating
         document.querySelectorAll('.rating-star').forEach(star => {
             star.onclick = function() {
                 const r = this.dataset.rating;
@@ -364,43 +765,7 @@
                 });
             };
         });
-
-        async function loadComments() {
-            const list = document.getElementById('commentsList');
-            const response = await fetch(`?handler=Comments&lessonId=${currentLessonId}`);
-            const comments = await response.json();
-            
-            if (!comments.length) {
-                list.innerHTML = '<p class="text-center text-muted py-3">No questions yet. Be the first to ask!</p>';
-                return;
-            }
-
-            function renderComment(c, isReply = false) {
-                return `
-                    <div class="comment-item ${isReply ? 'ms-5 border-start ps-3 mt-3' : 'mb-4 border-bottom pb-3'}">
-                        <div class="d-flex justify-content-between mb-1">
-                            <div>
-                                <strong class="me-2">${c.username}</strong>
-                                ${c.isInstructor ? '<span class="badge bg-primary rounded-pill smaller">Instructor</span>' : ''}
-                            </div>
-                            <span class="text-muted smaller">${new Date(c.createdAt).toLocaleDateString()}</span>
-                        </div>
-                        <div class="comment-text">${c.content}</div>
-                        ${c.replies && c.replies.length ? c.replies.map(r => renderComment(r, true)).join('') : ''}
-                    </div>
-                `;
-            }
-
-            list.innerHTML = comments.map(c => renderComment(c)).join('');
-        }
-
-        loadComments();
     </script>
-
-    <style>
-        /* Shared minor utilities if any, otherwise keep it empty or remove. 
-           Star rating interaction is usually better in CSS file but keep it if simple. */
-        .star-rating i { cursor: pointer; }
-    </style>
+    @Html.AntiForgeryToken()
 </body>
 </html>

@@ -53,6 +53,7 @@ public class LessonViewModel
     public int Duration { get; set; } = 15; // Default 15 minutes
     public bool IsPreview { get; set; }
     public bool IsCompleted { get; set; }
+    public int? LastWatchedPosition { get; set; }
     
     // Helper properties
     public string FormattedDuration => Duration > 0 ? $"{Duration}m" : "TBD";
@@ -67,5 +68,6 @@ public class CourseLearnViewModel
     public LessonViewModel? CurrentLesson { get; set; }
     public Guid? CurrentLessonId { get; set; }
     public decimal Progress { get; set; }
+    public Guid? CertificateId { get; set; }
     public List<ModuleViewModel> Modules { get; set; } = new(); // Changed to List for indexing
 }

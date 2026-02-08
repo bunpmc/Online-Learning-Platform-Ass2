@@ -26,7 +26,7 @@ public class OrderService(
         var order = await orderRepository.GetOrderDetailsAsync(orderId);
         if (order == null) return null;
 
-        return new OrderDetailViewModel
+        var viewModel = new OrderDetailViewModel
         {
             Id = order.OrderId,
             TotalAmount = order.TotalAmount,
@@ -41,6 +41,31 @@ public class OrderService(
                 CreatedAt = t.CreatedAt
             }).ToList()
         };
+
+        if (order.Course != null)
+        {
+            viewModel.Items.Add(new OrderItemViewModel
+            {
+                Id = order.Course.CourseId,
+                Type = "Course",
+                Title = order.Course.Title,
+                Price = order.Course.Price,
+                ImageUrl = order.Course.ImageUrl
+            });
+        }
+        else if (order.Path != null)
+        {
+            viewModel.Items.Add(new OrderItemViewModel
+            {
+                Id = order.Path.PathId,
+                Type = "LearningPath",
+                Title = order.Path.Title,
+                Price = order.Path.Price,
+                // ImageUrl for LearningPath if exists, otherwise null
+            });
+        }
+
+        return viewModel;
     }
 
     public async Task<OrderViewModel> CreateCourseOrderAsync(Guid userId, Guid courseId)
