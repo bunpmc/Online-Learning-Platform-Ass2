@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - LMS Platform</title>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="~/css/login.css" asp-append-version="true" />
+</head>
+<body>
+    <div class="split-layout">
+        <!-- Brand Section (Left) -->
+        <div class="brand-section">
+            <div class="brand-content">
+                <div class="logo">
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="40" height="40" rx="8" fill="white" fill-opacity="0.2"/>
+                        <path d="M20 10L30 15V25L20 30L10 25V15L20 10Z" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+                        <path d="M10 15L20 20L30 15" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+                        <path d="M20 30V20" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+                    </svg>
+                    <span>LMS Platform</span>
+                </div>
+                <div class="brand-hero-text">
+                    <h2>Empowering Education</h2>
+                    <p>Experience a modern way of learning with our advanced management system.</p>
+                </div>
+            </div>
+            <div class="brand-overlay"></div>
+        </div>
+
+        <!-- Form Section (Right) -->
+        <main class="form-section">
+            <div class="form-wrapper">
+                @RenderBody()
+            </div>
+        </main>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
