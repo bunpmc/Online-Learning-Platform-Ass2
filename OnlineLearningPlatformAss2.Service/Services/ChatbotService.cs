@@ -134,4 +134,41 @@ public class ChatbotService(HttpClient httpClient, ICourseRepository courseRepos
 
         return await SendToAi(payload);
     }
+
+    public async Task<string> AnalyzeRevenueAsync(string statsContext)
+    {
+        if (string.IsNullOrEmpty(_groqApiKey))
+        {
+            return "Xin lỗi, chức năng AI chưa được cấu hình (Thiếu API Key).";
+        }
+
+        var messages = new List<object>
+        {
+            new
+            {
+                role = "system",
+                content = "Bạn là một chuyên gia phân tích dữ liệu kinh doanh cho nền tảng học trực tuyến. " +
+                          "Dựa trên dữ liệu thống kê được cung cấp, hãy phân tích và đưa ra nhận xét tổng quan về:\n" +
+                          "1. Xu hướng doanh thu (tăng/giảm, tháng nào có doanh thu cao nhất/thấp nhất)\n" +
+                          "2. Xu hướng số lượng sinh viên tham gia (tăng trưởng hay giảm sút)\n" +
+                          "3. Mối tương quan giữa số sinh viên và doanh thu\n" +
+                          "4. Đề xuất chiến lược cải thiện doanh thu\n\n" +
+                          "Trả lời bằng tiếng Việt, ngắn gọn, sử dụng Markdown (headers ###, bullet points, bold cho số liệu quan trọng)."
+            },
+            new
+            {
+                role = "user",
+                content = statsContext
+            }
+        };
+
+        var payload = new
+        {
+            model = "llama-3.3-70b-versatile",
+            messages = messages,
+            temperature = 0.4
+        };
+
+        return await SendToAi(payload);
+    }
 }

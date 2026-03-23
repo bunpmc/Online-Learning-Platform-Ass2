@@ -17,4 +17,10 @@ public interface IAdminService
     Task<bool> ChangeUserRoleAsync(Guid userId, string roleName);
     Task<bool> DeleteUserAsync(Guid userId);
     Task<bool> AddInternalUserAsync(string username, string email, string password, string role);
+    
+    // Course CRUD
+    Task<(IEnumerable<CategoryDto> Categories, IEnumerable<InstructorDto> Instructors)> GetFormDataAsync();
+    Task<CourseViewModel?> CreateCourseAsync(AdminCreateCourseDto dto);
+    Task<CourseViewModel?> UpdateCourseAsync(AdminUpdateCourseDto dto);
+    Task<bool> DeleteCourseAsync(Guid courseId);
 }
