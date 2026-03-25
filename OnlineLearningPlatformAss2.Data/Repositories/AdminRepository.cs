@@ -49,6 +49,36 @@ public class AdminRepository(OnlineLearningSystemDbContext context) : IAdminRepo
             .ToListAsync();
     }
 
+    public async Task<List<(int Year, int Month, int Count)>> GetMonthlyEnrollmentsAsync(int months)
+    {
+        var fromDate = DateTime.UtcNow.AddMonths(-months + 1);
+        fromDate = new DateTime(fromDate.Year, fromDate.Month, 1);
+
+        var data = await context.Enrollments
+            .Where(e => e.EnrolledAt >= fromDate)
+            .GroupBy(e => new { e.EnrolledAt.Year, e.EnrolledAt.Month })
+            .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
+            .OrderBy(x => x.Year).ThenBy(x => x.Month)
+            .ToListAsync();
+
+        return data.Select(x => (x.Year, x.Month, x.Count)).ToList();
+    }
+
+    public async Task<List<(int Year, int Month, decimal Total)>> GetMonthlyRevenueAsync(int months)
+    {
+        var fromDate = DateTime.UtcNow.AddMonths(-months + 1);
+        fromDate = new DateTime(fromDate.Year, fromDate.Month, 1);
+
+        var data = await context.Orders
+            .Where(o => o.Status == "Completed" && o.CreatedAt >= fromDate)
+            .GroupBy(o => new { o.CreatedAt.Year, o.CreatedAt.Month })
+            .Select(g => new { g.Key.Year, g.Key.Month, Total = g.Sum(o => o.TotalAmount) })
+            .OrderBy(x => x.Year).ThenBy(x => x.Month)
+            .ToListAsync();
+
+        return data.Select(x => (x.Year, x.Month, x.Total)).ToList();
+    }
+
     // Courses
     public async Task<IEnumerable<Course>> GetPendingCoursesAsync()
     {
@@ -104,6 +134,36 @@ public class AdminRepository(OnlineLearningSystemDbContext context) : IAdminRepo
     public async Task<bool> HasActiveStudentsAsync(Guid instructorId)
     {
         return await context.Enrollments.AnyAsync(e => e.Course.InstructorId == instructorId);
+    }
+
+    // Categories & Instructors
+    public async Task<IEnumerable<Category>> GetAllCategoriesAsync()
+    {
+        return await context.Categories.AsNoTracking().OrderBy(c => c.Name).ToListAsync();
+    }
+
+    public async Task<IEnumerable<User>> GetInstructorsAsync()
+    {
+        return await context.Users
+            .AsNoTracking()
+            .Where(u => u.Role != null && u.Role.Name == "Instructor")
+            .OrderBy(u => u.Username)
+            .ToListAsync();
+    }
+
+    // Course CRUD
+    public async Task AddCourseAsync(Course course)
+    {
+        await context.Courses.AddAsync(course);
+    }
+
+    public async Task DeleteCourseAsync(Guid courseId)
+    {
+        var course = await context.Courses.FindAsync(courseId);
+        if (course != null)
+        {
+            context.Courses.Remove(course);
+        }
     }
 
     public async Task<int> SaveChangesAsync() => await context.SaveChangesAsync();

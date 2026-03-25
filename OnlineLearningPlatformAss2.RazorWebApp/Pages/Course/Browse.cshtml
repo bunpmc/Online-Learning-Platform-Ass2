@@ -223,74 +223,134 @@
                 .withAutomaticReconnect()
                 .build();
 
+            function updateCourseCard(card, course) {
+                const title = course.title || course.Title;
+                const desc = course.description || course.Description || '';
+                const price = (course.price || course.Price) === 0 ? 'Miễn phí' : (course.price || course.Price).toLocaleString('vi-VN') + '₫';
+                const category = course.categoryName || course.CategoryName;
+                const instructor = course.instructorName || course.InstructorName;
+                const students = course.studentCount || course.StudentCount || 0;
+
+                var el;
+                el = card.querySelector('.course-title a');
+                if (el) el.textContent = title;
+                el = card.querySelector('.course-description');
+                if (el) el.textContent = desc;
+                el = card.querySelector('.price');
+                if (el) el.textContent = price;
+                el = card.querySelector('.course-badge .badge');
+                if (el) el.textContent = category;
+                el = card.querySelector('.instructor');
+                if (el) el.innerHTML = '<i class="bi bi-person"></i> ' + instructor;
+                el = card.querySelector('.stat:nth-child(2) span');
+                if (el) el.textContent = students + ' students';
+
+                // Flash animation
+                card.style.transition = 'box-shadow 0.3s ease';
+                card.style.boxShadow = '0 0 0 3px rgba(67, 97, 238, 0.5)';
+                setTimeout(() => { card.style.boxShadow = ''; }, 1500);
+            }
+
+            function buildCourseCard(course) {
+                const id = course.id || course.Id;
+                const title = course.title || course.Title;
+                const desc = course.description || course.Description || '';
+                const price = (course.price || course.Price) === 0 ? 'Miễn phí' : (course.price || course.Price).toLocaleString('vi-VN') + '₫';
+                const category = course.categoryName || course.CategoryName;
+                const instructor = course.instructorName || course.InstructorName;
+                const students = course.studentCount || course.StudentCount || 0;
+                const image = course.imageUrl || course.ImageUrl;
+
+                var imgHtml = image
+                    ? `<img src="${image}" alt="${title}" loading="lazy">`
+                    : `<div class="course-placeholder"><i class="bi bi-book"></i></div>`;
+
+                var col = document.createElement('div');
+                col.className = 'col-lg-4 col-md-6';
+                col.setAttribute('data-course-id', id);
+                col.innerHTML = `
+                    <div class="course-card" style="animation: fadeInUp 0.5s ease">
+                        <div class="course-image">
+                            ${imgHtml}
+                            <div class="course-overlay">
+                                <a href="/Course/Details/${id}" class="btn-preview"><i class="bi bi-eye"></i> View Details</a>
+                            </div>
+                            <div class="course-badge"><span class="badge bg-primary">${category}</span></div>
+                        </div>
+                        <div class="course-content">
+                            <div class="course-meta">
+                                <span class="instructor"><i class="bi bi-person"></i> ${instructor}</span>
+                            </div>
+                            <h3 class="course-title"><a href="/Course/Details/${id}">${title}</a></h3>
+                            <p class="course-description">${desc}</p>
+                            <div class="course-stats">
+                                <div class="stat"><i class="bi bi-clock"></i><span>Self-paced</span></div>
+                                <div class="stat"><i class="bi bi-people"></i><span>${students} students</span></div>
+                                <div class="stat"><i class="bi bi-collection"></i><span>Multiple modules</span></div>
+                            </div>
+                            <div class="course-footer">
+                                <div class="course-price"><span class="price">${price}</span></div>
+                                <a href="/Course/Details/${id}" class="btn btn-primary"><i class="bi bi-plus"></i> Enroll Now</a>
+                            </div>
+                        </div>
+                    </div>`;
+                return col;
+            }
+
             connection.on("ReceiveCourseAdded", (course) => {
-                const status = course.status || course.Status;
-                
-                // If it is published right away, add it to the grid
-                if (status === "Published") {
-                    const price = course.price ?? course.Price ?? 0;
-                    const priceDisplay = price === 0 ? 'Miễn phí' : `${price.toLocaleString()}₫`;
-                    showToast(`Khóa học mới: ${course.title || course.Title}`, 'success');
-                    appendCourseCard(course);
-                    updateCounters();
+                const title = course.title || course.Title;
+                showToast(`Khóa học mới: ${title}`, 'success');
+                var grid = document.querySelector('.course-grid .row');
+                if (grid) {
+                    grid.prepend(buildCourseCard(course));
+                } else {
+                    // Grid was empty (no-results state), reload to show grid
+                    setTimeout(() => location.reload(), 500);
                 }
             });
 
             connection.on("ReceiveCourseUpdated", (course) => {
-                const status = course.status || course.Status;
-                const id = course.id || course.Id;
-                const title = course.title || course.Title;
-
-                const card = document.querySelector(`[data-course-id="${id}"]`);
-
-                if (status !== "Published") {
-                    // Remove nếu tồn tại
-                    if (card) {
-                        card.remove();
-                        updateCounters();
-                        showToast(`Khóa học "${title}" đã được gỡ khỏi danh sách.`, 'warning');
+                const status = (course.status || course.Status);
+                const id = (course.id || course.Id);
+                const title = (course.title || course.Title);
+                
+                if (status === "Suspended") {
+                    const cards = document.querySelectorAll(`[data-course-id="${id}"]`);
+                    if (cards.length > 0) {
+                        cards.forEach(card => {
+                            card.style.transition = 'all 0.5s ease';
+                            card.style.opacity = '0';
+                            card.style.transform = 'scale(0.9)';
+                            setTimeout(() => card.remove(), 500);
+                        });
+                        showToast(`Khóa học "${title}" đã bị gỡ khỏi danh sách.`, 'warning');
                     }
-                    return;
-                }
-
-                // ===== status === Published =====
-
-                if (card) {
-                    // Update card
-                    const titleEl = card.querySelector('.course-title a');
-                    if (titleEl) titleEl.textContent = title;
-
-                    const descEl = card.querySelector('.course-description');
-                    if (descEl) descEl.textContent = course.description || course.Description || '';
-
-                    const instructorEl = card.querySelector('.instructor');
-                    if (instructorEl) instructorEl.innerHTML =
-                        `<i class="bi bi-person"></i> ${course.instructorName || course.InstructorName || ''}`;
-
-                    const categoryEl = card.querySelector('.course-badge .badge');
-                    if (categoryEl) categoryEl.textContent =
-                        course.categoryName || course.CategoryName || '';
-
-                    const priceEl = card.querySelector('.course-price .price');
-                    const price = course.price ?? course.Price ?? 0;
-                    if (priceEl) priceEl.textContent =
-                        price === 0 ? 'Miễn phí' : `${price.toLocaleString()}₫`;
-
-                    showToast(`Khóa học "${title}" đã được cập nhật.`, 'info');
-                } else {
-                    // Unsuspend hoặc create mới
-                    appendCourseCard(course);
-                    updateCounters();
-                    showToast(`Khóa học "${title}" đã được xuất bản.`, 'success');
+                } else if (status === "Published") {
+                    const cards = document.querySelectorAll(`[data-course-id="${id}"]`);
+                    if (cards.length > 0) {
+                        // Update existing card in-place
+                        cards.forEach(card => updateCourseCard(card.querySelector('.course-card') || card, course));
+                        showToast(`Khóa học cập nhật: ${title}`, 'info');
+                    } else {
+                        // Course was previously not shown (e.g. unsuspended), add it
+                        var grid = document.querySelector('.course-grid .row');
+                        if (grid) {
+                            grid.prepend(buildCourseCard(course));
+                            showToast(`Khóa học "${title}" đã được khôi phục.`, 'success');
+                        } else {
+                            setTimeout(() => location.reload(), 500);
+                        }
+                    }
                 }
             });
 
             connection.on("ReceiveCourseDeleted", (courseId) => {
                 const cards = document.querySelectorAll(`[data-course-id="${courseId}"]`);
                 cards.forEach(card => {
-                    card.remove();
+                    card.style.transition = 'all 0.5s ease';
+                    card.style.opacity = '0';
+                    setTimeout(() => card.remove(), 500);
                 });
-                updateCounters();
                 showToast("Một khóa học đã bị gỡ bỏ.", 'info');
             });
 

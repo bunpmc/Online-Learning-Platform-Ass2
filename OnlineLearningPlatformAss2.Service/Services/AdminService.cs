@@ -38,6 +38,27 @@ public class AdminService(
             CreatedAt = o.CreatedAt
         }).ToList();
 
+        // Monthly chart data (last 12 months)
+        var monthlyEnrollments = await adminRepository.GetMonthlyEnrollmentsAsync(12);
+        var monthlyRevenue = await adminRepository.GetMonthlyRevenueAsync(12);
+
+        var enrollmentDict = monthlyEnrollments.ToDictionary(x => $"{x.Year}-{x.Month:D2}", x => x.Count);
+        var revenueDict = monthlyRevenue.ToDictionary(x => $"{x.Year}-{x.Month:D2}", x => x.Total);
+
+        var chartData = new List<MonthlyChartDataDto>();
+        for (int i = 11; i >= 0; i--)
+        {
+            var date = DateTime.UtcNow.AddMonths(-i);
+            var key = $"{date.Year}-{date.Month:D2}";
+            chartData.Add(new MonthlyChartDataDto
+            {
+                Month = date.ToString("MMM yyyy"),
+                EnrollmentCount = enrollmentDict.GetValueOrDefault(key, 0),
+                Revenue = revenueDict.GetValueOrDefault(key, 0m)
+            });
+        }
+        stats.MonthlyChartData = chartData;
+
         return stats;
     }
 
@@ -261,53 +282,19 @@ public class AdminService(
 
         await userRepository.AddAsync(user);
         await userRepository.SaveChangesAsync();
-
-        if (adminBroadcaster != null)
-        {
-            await adminBroadcaster.BroadcastUserAddedAsync(new AdminUserDto
-            {
-                Id = user.Id,
-                Username = user.Username,
-                Email = user.Email,
-                RoleName = roleName,
-                IsActive = user.IsActive,
-                CreatedAt = user.CreatedAt
-            });
-        }
         return true;
     }
-
-    public async Task<bool> ResetUserPasswordAsync(Guid userId, string newPassword)
+    // Course CRUD
+    public async Task<(IEnumerable<CategoryDto> Categories, IEnumerable<InstructorDto> Instructors)> GetFormDataAsync()
     {
-        var user = await userRepository.GetByIdAsync(userId);
-        if (user == null) return false;
-
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
-        await userRepository.UpdateAsync(user);
-        await userRepository.SaveChangesAsync();
-
-        if (adminBroadcaster != null)
-        {
-            await adminBroadcaster.BroadcastUserPasswordResetAsync(userId);
-        }
-        return true;
+        var categories = (await adminRepository.GetAllCategoriesAsync())
+            .Select(c => new CategoryDto { Id = c.CategoryId, Name = c.Name });
+        var instructors = (await adminRepository.GetInstructorsAsync())
+            .Select(u => new InstructorDto { Id = u.Id, Username = u.Username });
+        return (categories, instructors);
     }
 
-    public async Task<IEnumerable<AdminUserDto>> GetAllInstructorsAsync()
-    {
-        var users = await userRepository.SearchUsersAsync(null);
-        return users.Where(u => u.Role?.Name == "Instructor").Select(u => new AdminUserDto
-        {
-            Id = u.Id,
-            Username = u.Username,
-            Email = u.Email,
-            RoleName = "Instructor",
-            IsActive = u.IsActive,
-            CreatedAt = u.CreatedAt
-        });
-    }
-
-    public async Task<bool> CreateCourseAsync(CourseCreateDto dto)
+    public async Task<CourseViewModel?> CreateCourseAsync(AdminCreateCourseDto dto)
     {
         var course = new Course
         {
@@ -315,67 +302,64 @@ public class AdminService(
             Title = dto.Title,
             Description = dto.Description,
             Price = dto.Price,
-            ImageUrl = dto.ImageUrl,
             CategoryId = dto.CategoryId,
             InstructorId = dto.InstructorId,
-            IsFeatured = dto.IsFeatured,
+            ImageUrl = dto.ImageUrl,
             Level = dto.Level,
             Language = dto.Language,
-            Status = "Published", // Admin created courses are published by default
-            CreatedAt = DateTime.UtcNow
+            Status = "Published",
+            CreatedAt = DateTime.UtcNow,
+            IsFeatured = false
         };
 
         await adminRepository.AddCourseAsync(course);
         await adminRepository.SaveChangesAsync();
 
-        if (broadcaster != null)
+        var courseVm = await GetCourseViewModelAsync(course.CourseId);
+        if (courseVm != null && broadcaster != null)
         {
-            var courseVm = await GetCourseViewModelAsync(course.CourseId);
-            if (courseVm != null) await broadcaster.BroadcastCourseAddedAsync(courseVm);
+            await broadcaster.BroadcastCourseAddedAsync(courseVm);
         }
-
-        return true;
+        return courseVm;
     }
 
-    public async Task<bool> UpdateCourseAsync(Guid courseId, CourseUpdateDto dto)
+    public async Task<CourseViewModel?> UpdateCourseAsync(AdminUpdateCourseDto dto)
     {
-        var course = await adminRepository.GetCourseByIdAsync(courseId);
-        if (course == null) return false;
+        var course = await adminRepository.GetCourseByIdAsync(dto.CourseId);
+        if (course == null) return null;
 
         course.Title = dto.Title;
         course.Description = dto.Description;
         course.Price = dto.Price;
-        course.ImageUrl = dto.ImageUrl;
         course.CategoryId = dto.CategoryId;
-        course.IsFeatured = dto.IsFeatured;
+        course.ImageUrl = dto.ImageUrl;
         course.Level = dto.Level;
         course.Language = dto.Language;
+        course.Status = dto.Status;
 
         await adminRepository.UpdateCourseAsync(course);
         await adminRepository.SaveChangesAsync();
 
-        if (broadcaster != null)
+        var courseVm = await GetCourseViewModelAsync(course.CourseId);
+        if (courseVm != null && broadcaster != null)
         {
-            var courseVm = await GetCourseViewModelAsync(courseId);
-            if (courseVm != null) await broadcaster.BroadcastCourseUpdatedAsync(courseVm);
+            await broadcaster.BroadcastCourseUpdatedAsync(courseVm);
         }
-
-        return true;
+        return courseVm;
     }
 
     public async Task<bool> DeleteCourseAsync(Guid courseId)
     {
-        var course = await adminRepository.GetCourseByIdAsync(courseId);
-        if (course == null) return false;
+        var courseVm = await GetCourseViewModelAsync(courseId);
+        if (courseVm == null) return false;
 
-        await adminRepository.DeleteCourseAsync(course);
+        await adminRepository.DeleteCourseAsync(courseId);
         await adminRepository.SaveChangesAsync();
 
         if (broadcaster != null)
         {
             await broadcaster.BroadcastCourseDeletedAsync(courseId);
         }
-
         return true;
     }
 
@@ -388,6 +372,7 @@ public class AdminService(
         {
             Id = course.CourseId,
             Title = course.Title,
+            Description = course.Description ?? "",
             Price = course.Price,
             CategoryName = course.Category.Name,
             InstructorName = course.Instructor.Username,
@@ -399,8 +384,9 @@ public class AdminService(
             ImageUrl = course.ImageUrl,
             IsFeatured = course.IsFeatured,
             Status = course.Status,
-            StudentCount = await courseRepository.GetEnrollmentCountAsync(course.CourseId),
-            RejectionReason = course.RejectionReason
+            Language = course.Language,
+            RejectionReason = course.RejectionReason,
+            StudentCount = await courseRepository.GetEnrollmentCountAsync(course.CourseId)
         };
     }
 

@@ -28,41 +28,7 @@ public class TranscriptHub(ITranscriptService transcriptService, ICourseService 
                 return;
             }
 
-            // 1. Check DB for existing data
-            var existingTranscript = await _courseService.GetLessonTranscriptAsync(enrollmentId.Value, lessonId);
-            // Note: GetLessonTranscriptAsync returns transcript, but we also want summary.
-            // However, GetLessonTranscriptAsync logic in CourseService currently might define fetching from API if not found.
-            // Let's rely on CourseService to get stored data if available. 
-            // Actually, I should check if summary exists in DB specifically? 
-            // The current GetLessonTranscriptAsync implementation tries to fetch from API if not in DB. 
-            // That might be redundant if we want to separate logic here. 
-            // But let's stick to the plan: Check DB first. 
-            
-            // To properly check without triggering auto-generation in Service, 
-            // I might need a "GetStoredLessonData" method or just rely on the fact that 
-            // GetLessonTranscriptAsync *calls* SaveLessonAiDataAsync which updates the DB.
-            
-            // Wait, GetLessonTranscriptAsync in CourseService ALREADY calls TranscriptService if missing.
-            // I should probably modify GetLessonTranscriptAsync to NOT call API, or just use Repository directly here?
-            // No, Repository is internal to Service.
-            // Better approach: Use CourseService to get COURSE/LESSON stored data.
-            // I'll assume if GetLessonTranscriptAsync returns something valid, it's good. 
-            // But I specifically want to control the summarization source (Groq).
-            
-            // Let's try to get the CourseLearn view model or similar to see if data is there?
-            // Or just check if we can get it.
-            
-            // Let's proceed with the flow:
-            // If I call GetLessonTranscriptAsync, it might trigger the OLD Whisper-summarization logic if not found.
-            // I should probably update CourseService.GetLessonTranscriptAsync to NOT auto-generate, 
-            // OR ignore it and force generation here if I want specific Groq logic.
-            
-            // Actually, the previous step added `SaveLessonAiDataAsync`.
-            // The `GetLessonTranscriptAsync` method DOES invoke `GenerateTranscriptFromVideoAsync` if not found.
-            // And that uses the default `summarize=true` from the service implementation (unless I change it).
-            
-            // I want to override this behavior.
-            
+            // 1. Get lesson data with existing AI content
             var lesson = (await _courseService.GetCourseLearnAsync(enrollmentId.Value))?
                          .Modules.SelectMany(m => m.Lessons).FirstOrDefault(l => l.Id == lessonId);
             
@@ -72,15 +38,20 @@ public class TranscriptHub(ITranscriptService transcriptService, ICourseService 
                  return;
             }
 
-            // Check if we already have summary in the loaded lesson view model
+            // Check if we already have summary. If yes, return it immediately.
             if (!string.IsNullOrEmpty(lesson.AiSummary)) 
             {
                 await Clients.Caller.SendAsync("ReceiveSummary", lesson.AiSummary);
                 return;
             }
 
-            // 2. Generate Transcript (Raw)
-            var fullTranscript = await _transcriptService.GenerateTranscriptFromVideoAsync(lesson.VideoUrl, false); // false = no summary
+            // 2. Get or Generate Transcript
+            string fullTranscript = lesson.Transcript ?? string.Empty;
+            
+            if (string.IsNullOrEmpty(fullTranscript))
+            {
+                fullTranscript = await _transcriptService.GenerateTranscriptFromVideoAsync(lesson.VideoUrl, false); // false = no summary
+            }
             
             if (string.IsNullOrEmpty(fullTranscript)) 
             {
