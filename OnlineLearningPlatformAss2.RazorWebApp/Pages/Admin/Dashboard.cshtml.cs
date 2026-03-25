@@ -22,12 +22,18 @@ public class DashboardModel : PageModel
 
     public AdminStatsDto Stats { get; set; } = new();
 
+    [BindProperty(SupportsGet = true)]
+    public DateTime? StartDate { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public DateTime? EndDate { get; set; }
+
     public async Task OnGetAsync()
     {
-        Stats = await _adminService.GetStatsAsync();
+        Stats = await _adminService.GetStatsAsync(StartDate, EndDate);
     }
 
-    public async Task<IActionResult> OnPostGenerateAiAnalysisAsync()
+    public async Task<IActionResult> OnPostGenerateAiAnalysisAsync([FromBody] DateFilterRequest request)
     {
         Stats = await _adminService.GetStatsAsync();
         var context = BuildAdminContext(Stats);
@@ -70,4 +76,10 @@ public class DashboardModel : PageModel
     {
         public string Question { get; set; } = "";
     }
+}
+
+public class DateFilterRequest
+{
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
 }
