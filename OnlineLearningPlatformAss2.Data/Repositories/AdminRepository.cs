@@ -151,11 +151,6 @@ public class AdminRepository(OnlineLearningSystemDbContext context) : IAdminRepo
             .ToListAsync();
     }
 
-    // Course CRUD
-    public async Task AddCourseAsync(Course course)
-    {
-        await context.Courses.AddAsync(course);
-    }
 
     public async Task DeleteCourseAsync(Guid courseId)
     {

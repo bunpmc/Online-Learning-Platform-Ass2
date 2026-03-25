@@ -378,13 +378,11 @@ public class AdminService(
             InstructorName = course.Instructor.Username,
             InstructorId = course.InstructorId,
             CategoryId = course.CategoryId,
-            Description = course.Description ?? "",
             Level = course.Level,
             Language = course.Language,
             ImageUrl = course.ImageUrl,
             IsFeatured = course.IsFeatured,
             Status = course.Status,
-            Language = course.Language,
             RejectionReason = course.RejectionReason,
             StudentCount = await courseRepository.GetEnrollmentCountAsync(course.CourseId)
         };
@@ -551,6 +549,22 @@ public class AdminService(
             if (courseVm != null) await broadcaster.BroadcastCourseUpdatedAsync(courseVm);
         }
 
+        return true;
+    }
+
+    public async Task<bool> ResetUserPasswordAsync(Guid userId, string newPassword)
+    {
+        var user = await userRepository.GetByIdAsync(userId);
+        if (user == null) return false;
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        await userRepository.UpdateAsync(user);
+        await userRepository.SaveChangesAsync();
+
+        if (adminBroadcaster != null)
+        {
+            await adminBroadcaster.BroadcastUserStatusToggledAsync(userId, user.IsActive); // Or a specific event
+        }
         return true;
     }
 }
